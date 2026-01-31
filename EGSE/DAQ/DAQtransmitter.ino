@@ -1,3 +1,4 @@
+// THIS IS TRANSMITTER CODE
 #include <Arduino.h>
 #include <ADS1256.h>
 #include "ADS8688.h"
@@ -94,11 +95,11 @@ void loop() {
   float ptVoltages[8];
   float ptCalibrated[8];
   pressureADC.readAllChannels(ADS8688_CS, true, ptVoltages);
-  for(int i = 0; i < 8; i++){
-    Serial.print(ptVoltages[i]);
-    Serial.print(" ");
-  }
-  Serial.println();
+  // for(int i = 0; i < 8; i++){
+  //   //Serial.print(ptVoltages[i]);
+  //   //Serial.print(" ");
+  // }
+  // Serial.println();
   for (int i = 0; i < 8; i++) {
     if(i >= 4){
       ptCalibrated[i] = getCalibratedValue(mValues[i - 4], bValues[i - 4], ptVoltages[i]);
@@ -110,11 +111,12 @@ void loop() {
   float loadCell[2] = {-1, -1};
   loadCell[0] = -58439.4371*loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))+1.19746;
   loadCell[1] = -395379.263*loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))+27.13879;
-  char finalStr[300];
-  sprintf(
+  char finalStr[400];
+  snprintf(
     finalStr,
+    sizeof(finalStr),
     // "A %4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f%l Z\n",
-    "A %4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%lu Z\n",
+    "rocket_data pt0=%4.10f,pt1=%4.10f,pt2=%4.10f,pt3=%4.10f,lc0=%4.10f,uptime_ms=%lu",
     // "A %4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,"
     // "%4.10f,%4.10f"
     // "%l Z\n",
@@ -130,6 +132,15 @@ void loop() {
     // loadCell[1],
     millis()
   );
+  // snprintf(
+  //   finalStr,
+  //   sizeof(finalStr),
+  //   "rocket_data pt0=%.4f,pt1=%.4f,pt2=%.4f,pt3=%.4f,pt4=%.4f,pt5=%.4f,pt6=%.4f,pt7=%.4f,lc0=%.4f,lc1=%.4f,uptime_ms=%lu",
+  //   ptCalibrated[0], ptCalibrated[1], ptCalibrated[2], ptCalibrated[3],
+  //   ptCalibrated[4], ptCalibrated[5], ptCalibrated[6], ptCalibrated[7],
+  //   loadCell[0], loadCell[1],
+  //   millis()
+  // );
 
   // Serial.print(ptCalibrated[0]);
   // Serial.print(" ");
