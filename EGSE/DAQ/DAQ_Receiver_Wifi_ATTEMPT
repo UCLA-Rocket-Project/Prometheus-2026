@@ -1,0 +1,151 @@
+// RS485 Receiver (ESP32)
+//0: nothing.     1: tank.       2: fill.      3: pneumatics
+//#include <HardwareSerial.h>
+#include <Wifi.h>
+#include <PubSubClient.h>
+
+#include <string>
+#define RO_PIN 35
+#define DI_PIN 32
+#define RE_PIN 19// Receiver Enable (LOW = enabled)
+#define DE_PIN 19// Driver Enable (LOW = disabled)
+
+unsigned long long delay_time = 250;
+unsigned long long last_time = 0;
+//HardwareSerial rs485Serial(2);
+
+unsigned long last_msg_time = 0;
+unsigned long last_mqtt_attempt = 0;
+const unsigned long COMMS_TIMEOUT = 10000;
+bool comms_lost = false;
+
+const char* ssid = "ILAY";
+const char* password = "lebronpookie123";
+// Add your MQTT Broker IP address, example:
+const char* mqtt_server = "192.168.0.100";
+// run `ipconfig getifaddr en0` in your macbook terminal
+const char* DAQ_TOPIC = "DAQ_transmiter/receiver";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void setup_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += payload[i];
+  }
+
+  Serial.println(message);
+
+  comms_lost = false;
+  last_msg_time = millis();
+}
+
+void connect_client() {
+  if (client.connected())
+    return;
+  String cid = "DAQ_RECEIVER-" + WiFi.macAddress();
+  if (client.connect(cid.c_str())) {
+    client.subscribe(DAQ_TOPIC);
+    Serial.println("Connected to MQTT broker");
+
+  } else {
+    Serial.println("Failed to reconnect to MQTT broker");
+  }
+}
+
+void setup() {
+  Serial.println("START :)");
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  rs485Serial.begin(115200, SERIAL_8N1, RO_PIN, DI_PIN);
+  pinMode(RE_PIN, OUTPUT);
+  pinMode(DE_PIN, OUTPUT);
+  digitalWrite(RE_PIN, LOW);//on
+  digitalWrite(DE_PIN, LOW);//off
+
+  WiFi.mode(WIFI_STA);
+  setup_wifi();
+
+  // connect to MQTT server
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+  connect_client();
+
+  last_msg_time = millis();
+
+  Serial.println("done with setup");
+}
+
+void loop() {
+  if (!comms_lost && millis() - last_msg_time > COMMS_TIMEOUT) {
+    // Lost comms → safe state
+    comms_lost = true;
+    safeShutdown("COMMS TIMEOUT");
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Network disconnection detected");
+
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    delay(500);
+    unsigned long long disconnect_start = millis();
+
+    while (WiFi.status() != WL_CONNECTED) {
+      if ((millis() - disconnect_start) > 20000) {
+        safeShutdown("Disconnected for 20s EMERGENCY SHUTDOWN");
+
+      }
+      Serial.println("Reconnecting to Wifi...");
+      delay(250);
+
+    }
+
+  }
+  if (!client.connected()) {
+    connect_client();
+
+  }
+  client.loop();
+}
+// void loop() {
+//   // put your main code here, to run repeatedly:
+//   while (!rs485Serial.available() && millis() - last_time > 1000){
+//     Serial.println("Unavailable...");
+//   }
+//   while (rs485Serial.available()){
+//     String message;
+//     for (int i = 0; i < 500; i++){
+//       char received = rs485Serial.read();
+//       if (received == '\n'){
+//         break;
+//       }
+//       message += String(received);
+//     }
+//     //Serial.println("Recieved:");
+//     String printMsg = String(message);
+//     Serial.println(printMsg);
+//     last_time = millis();
+//   }
+// }
