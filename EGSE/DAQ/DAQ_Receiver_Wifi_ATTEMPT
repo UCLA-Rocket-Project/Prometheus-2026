@@ -21,7 +21,7 @@ bool comms_lost = false;
 const char* ssid = "ILAY";
 const char* password = "lebronpookie123";
 const char* mqtt_server = "192.168.0.100"; //run ipconfig (should match ipv4 of MQTT host computer)
-const char* DAQ_TOPIC = "DAQ_transmiter/receiver";
+const char* DAQ_TOPIC = "DAQ_transmitter/receiver";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -49,7 +49,7 @@ void setup_wifi() {
 void callback(char* topic, byte* payload, unsigned int length) {
   String message = "";
   for (int i = 0; i < length; i++) {
-    message += payload[i];
+    message += (char)payload[i];
   }
 
   Serial.println(message);
