@@ -1,6 +1,6 @@
 STEPS FOR SETTING UP MOSQUITTO SERVER
 
-1. Downlaod Mosquitto install and install with default configurations
+1. Download Mosquitto install and install with default configurations
 2. Copy the mosquitto.conf file from github and paste over your own mosquitto.conf file (ONLY IF ROUTER HAS NO INTERNET ACCESS)
 3. run mosquitto with this command in terminal: mosquitto -c mosquitto.conf -v
 4. check services to see if mosquitto is running (on windows hit [windows key + r], then enter services.msc)
