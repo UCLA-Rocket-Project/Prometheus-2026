@@ -30,7 +30,7 @@ const unsigned long MQTT_RETRY_INTERVAL = 2000;
 const char* ssid = "ILAY";
 const char* password = "lebronpookie123";
 const char* mqtt_server = "192.168.0.100";
-const char* DAQ_TOPIC = "DAQ_transmiter/receiver";
+const char* DAQ_TOPIC = "DAQ_transmitter/receiver";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
