@@ -7,5 +7,8 @@ STEPS FOR SETTING UP MOSQUITTO SERVER
 5. power and turn on the router
 6. connect mosquitto server host (most likely your computer) to WiFi router. You can find username and password information in code (ssid is username, psasword is the password)
 7. Allow firewall access (2 options): temporarily turn off firewall for public domains | OR | open firewall advanced settings -> add inbound rule (port: 1883, protocol: TCP, Allow)
+
+YOU ONLY NEED TO DO STEPS 1-7 ONCE, 8-9 MUST BE REPEATED EVERY TIME SERVER IS SET UP
+
 8. After connecting to router, run the command "ipconfig" in terminal and read the ipv4 under "Wireless LAN adapter Wi-Fi:"
 9. Change the code for both esp32's involved in communication such that the variable mqtt_server = the host IP you just found
