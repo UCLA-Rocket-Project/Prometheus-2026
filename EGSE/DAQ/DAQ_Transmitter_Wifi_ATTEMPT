@@ -4,32 +4,37 @@
 #include <SPI.h>
 #include <string>
 #include <Adafruit_ADS1X15.h>
-//#include <HardwareSerial.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+
 // Load Cell (ADS1256) SPI Pins
 #define ADS1256_MISO 35
 #define ADS1256_SCLK 48
 #define ADS1256_MOSI 34
 #define ADS1256_CS 7
 #define ADS1256_DRDY 4
+
 // PT (ADS8688) SPI Pin
 #define ADS8688_CS 36
+
 // LED indicator pin
 #define LED 38
 #define RO_PIN 44     //16
 #define DI_PIN 43     //17
 #define DE_RE_PIN 41  //23
-//HardwareSerial rs485Serial(2);
+
 unsigned long last_mqtt_attempt = 0;
-const unsigned long MQTT_RETRY_INTERVAL = 2000; // 2s
+const unsigned long MQTT_RETRY_INTERVAL = 2000;
+
 // WiFi + MQTT credentials
 const char* ssid = "ILAY";
 const char* password = "lebronpookie123";
 const char* mqtt_server = "192.168.0.100";
 const char* DAQ_TOPIC = "DAQ_transmiter/receiver";
+
 WiFiClient espClient;
 PubSubClient client(espClient);
+
 // SPI bus shared between both ADCs
 SPIClass sharedSPI(FSPI);
 // ADS1256 instance
@@ -83,7 +88,6 @@ void setup() {
   pinMode(DE_RE_PIN, OUTPUT);
   digitalWrite(DE_RE_PIN, HIGH);
   // put your setup code here, to run once:
-  //rs485Serial.begin(115200, SERIAL_8N1, RO_PIN, DI_PIN);
   Serial.begin(115200);
   delay(1000);
   pinMode(LED, OUTPUT);
