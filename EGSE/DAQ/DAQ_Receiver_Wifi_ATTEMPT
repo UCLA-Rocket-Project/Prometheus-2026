@@ -1,6 +1,3 @@
-// RS485 Receiver (ESP32)
-//0: nothing.     1: tank.       2: fill.      3: pneumatics
-//#include <HardwareSerial.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 
@@ -11,10 +8,9 @@
 #define DE_PIN 19// Driver Enable (LOW = disabled)
 
 
-const unsigned long WIFI_RETRY_INTERVAL = 5000;  // 5s
-const unsigned long MQTT_RETRY_INTERVAL = 2000;  // 2s
+const unsigned long WIFI_RETRY_INTERVAL = 5000;
+const unsigned long MQTT_RETRY_INTERVAL = 2000; 
 
-//HardwareSerial rs485Serial(2);
 
 unsigned long last_msg_time = 0;
 unsigned long last_mqtt_attempt = 0;
@@ -24,9 +20,7 @@ bool comms_lost = false;
 
 const char* ssid = "ILAY";
 const char* password = "lebronpookie123";
-// Add your MQTT Broker IP address, example:
-const char* mqtt_server = "192.168.0.100";
-// run `ipconfig getifaddr en0` in your macbook terminal
+const char* mqtt_server = "192.168.0.100"; //run ipconfig (should match ipv4 of MQTT host computer)
 const char* DAQ_TOPIC = "DAQ_transmiter/receiver";
 
 WiFiClient espClient;
@@ -34,7 +28,6 @@ PubSubClient client(espClient);
 
 void setup_wifi() {
   delay(10);
-  // We start by connecting to a WiFi network
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
@@ -82,9 +75,7 @@ void connect_client() {
 
 void setup() {
   Serial.println("START :)");
-  // put your setup code here, to run once:
   Serial.begin(115200);
-  //rs485Serial.begin(115200, SERIAL_8N1, RO_PIN, DI_PIN);
   pinMode(RE_PIN, OUTPUT);
   pinMode(DE_PIN, OUTPUT);
   digitalWrite(RE_PIN, LOW);//on
