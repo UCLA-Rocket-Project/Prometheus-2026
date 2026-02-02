@@ -67,7 +67,7 @@ void setup() {
   // put your setup code here, to run once:
   rs485Serial.begin(115200, SERIAL_8N1, RO_PIN, DI_PIN);
   Serial.begin(115200);
-  delay(1000);
+  // delay(1000);
   pinMode(LED, OUTPUT);
   digitalWrite(LED, HIGH);
   // Start custom SPI bus
@@ -113,25 +113,16 @@ void loop() {
   loadCell[1] = -395379.263*loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))+27.13879;
   char finalStr[400];
   snprintf(
-    finalStr,
-    sizeof(finalStr),
-    // "A %4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f%l Z\n",
-    "rocket_data pt0=%4.10f,pt1=%4.10f,pt2=%4.10f,pt3=%4.10f,lc0=%4.10f,uptime_ms=%lu",
-    // "A %4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,"
-    // "%4.10f,%4.10f"
-    // "%l Z\n",
-    ptCalibrated[4],
-    ptCalibrated[5],
-    ptCalibrated[6],
-    ptCalibrated[7],
-    // ptCalibrated[4],
-    // ptCalibrated[5],
-    // ptCalibrated[6],
-    // ptCalibrated[7],
-    loadCell[0],
-    // loadCell[1],
-    millis()
-  );
+  finalStr,
+  sizeof(finalStr),
+  "rocket_data pt0=%.4f,pt1=%.4f,pt2=%.4f,pt3=%.4f,lc0=%.4f,uptime_ms=%lu",
+  ptCalibrated[4],
+  ptCalibrated[5],
+  ptCalibrated[6],
+  ptCalibrated[7],
+  loadCell[0],
+  millis()
+);
   // snprintf(
   //   finalStr,
   //   sizeof(finalStr),
@@ -172,5 +163,5 @@ void loop() {
   // client.publish("esp32/output", finalStr);
   // Serial.println(finalStr);
   rs485Serial.println(finalStr);
-  delay(500);
+  // delay(500);
 }

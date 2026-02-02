@@ -25,22 +25,19 @@ void setup() {
   digitalWrite(DE_PIN, LOW);//off
 }
 void loop() {
-  // put your main code here, to run repeatedly:
-  while (!rs485Serial.available() && millis() - last_time > 1000){
-    Serial.println("Unavailable...");
-  }
-  while (rs485Serial.available()){
-    String message;
-    for (int i = 0; i < 500; i++){
-      char received = rs485Serial.read();
-      if (received == '\n'){
-        break;
-      }
-      message += String(received);
+  if (rs485Serial.available()) {
+    // Read the full line efficiently
+    String message = rs485Serial.readStringUntil('\n');
+    
+    if (message.length() > 0) {
+        // Direct pass-through to Python
+        Serial.println(message); 
+        last_time = millis();
     }
-    //Serial.println("Recieved:");
-    String printMsg = String(message);
-    Serial.println(printMsg);
-    last_time = millis();
+  }
+  // Timeout warning
+  if (millis() - last_time > 1000) {
+    Serial.println("Unavailable..."); 
+    // Commented out to avoid polluting data stream
   }
 }
