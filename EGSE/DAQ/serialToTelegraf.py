@@ -13,7 +13,6 @@ WEBSOCKET_ADDRESS = "http://localhost:3001/"
 TELEGRAF_URL = "http://localhost:8094/telegraf"
 
 # --- SETUP ---
-
 # Determine whether to save to csv
 printToCsv = True
 print("Save to csv? (y/n) (default is yes)")
