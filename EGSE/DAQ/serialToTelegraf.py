@@ -14,6 +14,15 @@ TELEGRAF_URL = "http://localhost:8094/telegraf"
 
 # --- SETUP ---
 
+# Determine whether to save to csv
+printToCsv = True
+print("Save to csv? (y/n) (default is yes)")
+response = input()
+if response.lower().strip() == "n" or response.lower().strip() == "no":
+    printToCsv = False
+    print(f"printToCSV = {printToCsv}")    
+
+
 # 1. Dated CSV Filename logic
 today_date = datetime.now().strftime("%Y-%m-%d")
 base_name = f"rocket_data_{today_date}"
@@ -31,7 +40,7 @@ try:
     sio.connect(WEBSOCKET_ADDRESS, wait_timeout=2)
     print("Connected to HUD")
 except:
-    print("HUD not found (Data will still log to CSV and Telegraf)")
+    print("HUD not found (Data will still log to Telegraf and CSV if enabled)")
 
 # 3. Setup Serial
 try:
@@ -42,9 +51,10 @@ except Exception as e:
     exit()
 
 # 4. Write CSV Header immediately
-with open(file_path, mode='w', newline='') as f:
-    header = [f'pt{i}' for i in range(8)] + ['lc0', 'lc1', 'timestamp']
-    csv.writer(f).writerow(header)
+if(printToCsv == True):
+    with open(file_path, mode='w', newline='') as f:
+        header = [f'pt{i}' for i in range(8)] + ['lc0', 'lc1', 'timestamp']
+        csv.writer(f).writerow(header)
 
 # --- HELPERS ---
 
@@ -93,10 +103,11 @@ while True:
             # 2. Parse and log to CSV/HUD
             data = parse_line(raw_line)
             if data:
-                # Append to CSV
-                with open(file_path, mode='a', newline='') as f:
-                    csv.writer(f).writerow([data.get(f'pt{i}', '') for i in range(8)] + 
-                                           [data.get('lc0', ''), data.get('lc1',''), time.time()])
+                if printToCsv == True:
+                    # Append to CSV
+                    with open(file_path, mode='a', newline='') as f:
+                        csv.writer(f).writerow([data.get(f'pt{i}', '') for i in range(8)] + 
+                                            [data.get('lc0', ''), data.get('lc1',''), time.time()])
                 
                 # Update HUD
                 if sio.connected:
