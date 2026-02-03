@@ -1,10 +1,11 @@
 STEPS FOR SETTING UP MOSQUITTO SERVER
 
 1. Download Mosquitto install and install with default configurations
-2. Copy the mosquitto.conf file from github and paste over your own mosquitto.conf file (ONLY IF ROUTER HAS NO INTERNET ACCESS)
-3. run mosquitto with this command in terminal: mosquitto -c mosquitto.conf -v
-4. check services to see if mosquitto is running (on windows hit [windows key + r], then enter services.msc)
-5. Allow firewall access (2 options): temporarily turn off firewall for public domains | OR | open firewall advanced settings -> add inbound rule (port: 1883, protocol: TCP, Allow)
+2. add Mosquitto to PATH (environment variables)
+3. Copy the mosquitto.conf file from github and paste over your own mosquitto.conf file (ONLY IF ROUTER HAS NO INTERNET ACCESS)
+4. run mosquitto with this command in terminal: mosquitto -c mosquitto.conf -v
+5. check services to see if mosquitto is running (on windows hit [windows key + r], then enter services.msc)
+6. Allow firewall access (2 options): temporarily turn off firewall for public domains | OR | open firewall advanced settings -> add inbound rule (port: 1883, protocol: TCP, Allow)
 
 YOU ONLY NEED TO DO STEPS 1-5 ONCE, 6-9 MUST BE REPEATED EVERY TIME SERVER IS SET UP
 
