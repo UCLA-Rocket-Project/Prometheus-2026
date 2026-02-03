@@ -26,7 +26,7 @@
 unsigned long last_mqtt_attempt = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 2000;
 
-const unsigned long PUBLISH_INTERVAL = 10; 
+const unsigned long PUBLISH_INTERVAL = 10; //100 Hz (Hz is 1/(interval/1000))
 unsigned long lastPublish = 0;
 
 
