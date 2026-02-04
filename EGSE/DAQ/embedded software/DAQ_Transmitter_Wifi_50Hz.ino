@@ -28,7 +28,7 @@ static unsigned long lastMqttLoop = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
 const unsigned long SAMPLE_INTERVAL = 2;   // 500 Hz
-const unsigned long PUBLISH_INTERVAL = 20; // 50 Hz
+const unsigned long PUBLISH_INTERVAL = 10; // 100 Hz
 
 unsigned long lastSample = 0;
 unsigned long lastPublish = 0;
@@ -159,7 +159,7 @@ void loop() {
     client.loop();
   }
 
-  //PUBLISH 50 Hz
+  //PUBLISH 100 Hz
   if (millis() - lastPublish >= PUBLISH_INTERVAL) {
     lastPublish = millis();
 
