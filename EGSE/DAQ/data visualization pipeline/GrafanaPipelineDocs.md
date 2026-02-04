@@ -47,6 +47,10 @@ Open: `nano /opt/homebrew/etc/grafana/grafana.ini`
 - Adjust the line `min_refresh_interval: 5s` to your desirable Grafana dashboard refresh rate (eg. 500ms)
 - Save the file (Ctrl+O --> `y` --> Enter)
 - Restart grafana
+- Go back to grafana web browser (http://localhost:3000)
+    - Open dashboard
+    - On the top right click edit, and open settings
+    - Scroll down to Time Options and at auto-refresh add 500ms as onn option.
 
 
 
