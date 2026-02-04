@@ -163,5 +163,5 @@ void loop() {
   // client.publish("esp32/output", finalStr);
   // Serial.println(finalStr);
   rs485Serial.println(finalStr);
-  // delay(500);
+  delay(10);
 }
