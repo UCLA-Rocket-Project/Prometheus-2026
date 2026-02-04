@@ -51,6 +51,7 @@ Open in terminal `nano /opt/homebrew/etc/grafana/grafana.ini` (apple silicon) or
   -- Open dashboard
   -- Click New Dashboard on the top righ, and then clich import
   -- ** Insert the code from Cold_Flow_Grafana_GUI.json into the import section **
+    - remember to change the bucket to the name of your own influxdb bucket. remove the [] brackets too. Should be: `"bucket name"`
 
   afterward MUST set grafana to reload faster
     - Open dashboard 
