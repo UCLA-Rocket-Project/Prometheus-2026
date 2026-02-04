@@ -42,7 +42,7 @@ In the terminal, navigate to the folder that contains the config file and run: `
 Open: `[http](http://localhost:3000)`
 
 ## To adjust Grafana UI refresh rate
-Open: `nano /opt/homebrew/etc/grafana/grafana.ini`
+Open in terminal `nano /opt/homebrew/etc/grafana/grafana.ini` (apple silicon) or `nano /usr/local/etc/grafana/grafana.ini` (intel mac)
 - Find the section `[dashboards]` (you can use Ctrl+W to find [dashboards])
 - Adjust the line `min_refresh_interval: 5s` to your desirable Grafana dashboard refresh rate (eg. 500ms)
 - Save the file (Ctrl+O --> `y` --> Enter)
