@@ -50,7 +50,7 @@ Open: `nano /opt/homebrew/etc/grafana/grafana.ini`
 - Go back to grafana web browser (http://localhost:3000)
     - Open dashboard
     - On the top right click edit, and open settings
-    - Scroll down to Time Options and at auto-refresh add 500ms as onn option.
+    - Scroll down to Time Options and at auto-refresh add 500ms as on option.
 
 
 
