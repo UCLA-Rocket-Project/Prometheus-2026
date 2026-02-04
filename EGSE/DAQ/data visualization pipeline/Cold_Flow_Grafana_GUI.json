@@ -112,7 +112,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt3\")\n  |> yield(name: \"pt3\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt3\")\n  |> yield(name: \"pt3\")\n\n",
           "refId": "A"
         }
       ],
@@ -179,7 +179,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt3\")\n  |> yield(name: \"pt3\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt3\")\n  |> yield(name: \"pt3\")\n\n",
           "refId": "A"
         }
       ],
@@ -277,7 +277,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt2\")\n  |> yield(name: \"pt2\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt2\")\n  |> yield(name: \"pt2\")\n\n",
           "refId": "A"
         }
       ],
@@ -344,7 +344,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt2\")\n  |> yield(name: \"pt2\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt2\")\n  |> yield(name: \"pt2\")\n\n",
           "refId": "A"
         }
       ],
@@ -441,7 +441,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt1\")\n  |> yield(name: \"pt1\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt1\")\n  |> yield(name: \"pt1\")\n\n",
           "refId": "A"
         }
       ],
@@ -508,7 +508,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt1\")\n  |> yield(name: \"pt1\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"pt1\")\n  |> yield(name: \"pt1\")\n\n",
           "refId": "A"
         }
       ],
@@ -606,7 +606,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"lc0\")\n  |> yield(name: \"lc0\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"lc0\")\n  |> yield(name: \"lc0\")\n\n",
           "refId": "A"
         }
       ],
@@ -673,7 +673,7 @@
             "type": "influxdb",
             "uid": "afbx9j70wn6dce"
           },
-          "query": "from(bucket: \"Abdel Boshara\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"lc0\")\n  |> yield(name: \"lc0\")\n\n",
+          "query": "from(bucket: \"[ADD BUCKET NAME HERE]\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"rocket_data\")\n  |> filter(fn: (r) => r._field == \"lc0\")\n  |> yield(name: \"lc0\")\n\n",
           "refId": "A"
         }
       ],
