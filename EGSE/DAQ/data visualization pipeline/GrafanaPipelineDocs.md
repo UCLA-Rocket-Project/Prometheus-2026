@@ -48,7 +48,12 @@ Open: `nano /opt/homebrew/etc/grafana/grafana.ini`
 - Save the file (Ctrl+O --> `y` --> Enter)
 - Restart grafana
 - Go back to grafana web browser (http://localhost:3000)
-    - Open dashboard
+  -- Open dashboard
+  -- Click New Dashboard on the top righ, and then clich import
+  -- ** Insert the code from Cold_Flow_Grafana_GUI.json into the import section **
+
+  afterward MUST set grafana to reload faster
+    - Open dashboard 
     - On the top right click edit, and open settings
     - Scroll down to Time Options and at auto-refresh add 500ms as on option.
 
