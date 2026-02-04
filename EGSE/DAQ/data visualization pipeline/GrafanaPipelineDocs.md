@@ -36,10 +36,19 @@ In the terminal, navigate to the folder that contains the config file and run: `
 - This will be running in that terminal window. Open a new window if you want to run other commands.
 
 ## Setting up Grafana
-- To insntall: `brew install grafana`
+- To install: `brew install grafana`
 - To run: `brew services start grafana`
-- To stop: `brew sservices stop grafana`
+- To stop: `brew services stop grafana`
 Open: `[http](http://localhost:3000)`
+
+## To adjust Grafana UI refresh rate
+Open: `nano /opt/homebrew/etc/grafana/grafana.ini`
+- Find the section `[dashboards]` (you can use Ctrl+W to find [dashboards])
+- Adjust the line `min_refresh_interval: 5s` to your desirable Grafana dashboard refresh rate (eg. 500ms)
+- Save the file (Ctrl+O --> `y` --> Enter)
+- Restart grafana
+
+
 
 To create an account, type admin for the passwrod and username and hit enter to start the new account creation process. 
 
