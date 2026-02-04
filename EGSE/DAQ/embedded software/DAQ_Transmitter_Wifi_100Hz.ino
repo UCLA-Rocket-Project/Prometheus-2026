@@ -24,9 +24,13 @@
 #define DE_RE_PIN 41  //23
 
 unsigned long last_mqtt_attempt = 0;
-const unsigned long MQTT_RETRY_INTERVAL = 2000;
+static unsigned long lastMqttLoop = 0;
+const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
-const unsigned long PUBLISH_INTERVAL = 10; //100 Hz (Hz is 1/(interval/1000))
+const unsigned long SAMPLE_INTERVAL = 2;   // 500 Hz
+const unsigned long PUBLISH_INTERVAL = 20; // 50 Hz
+
+unsigned long lastSample = 0;
 unsigned long lastPublish = 0;
 
 
@@ -116,85 +120,67 @@ float getCalibratedValue(float m, float b, float raw) {
 }
 float mValues[4] = { 5.077578, 5.073776, 5.042717, 8.125911 };
 float bValues[4] = { 1081.752319, 1063.822266, 1080.457153, 1139.25354 };
+
+bool waitForDRDY(uint32_t timeout_us = 2000) {
+  uint32_t start = micros();
+  while (digitalRead(ADS1256_DRDY)) {
+    if (micros() - start > timeout_us) {
+      return false;  // timed out, skip this sample
+    }
+  }
+  return true;
+}
+
 void loop() {
-  // --- PT Measurements (8 channels) ---
-  float ptVoltages[8];
-  float ptCalibrated[8];
-  pressureADC.readAllChannels(ADS8688_CS, true, ptVoltages);
-  // for(int i = 0; i < 8; i++){
-  //   //Serial.print(ptVoltages[i]);
-  //   //Serial.print(" ");
-  // }
-  // Serial.println();
-  for (int i = 0; i < 8; i++) {
-    if (i >= 4) {
+  static float ptVoltages[8];
+  static float ptCalibrated[8];
+  static float loadCell[2];
+
+  //SAMPLING 500 Hz
+  if (millis() - lastSample >= SAMPLE_INTERVAL) {
+    lastSample = millis();
+
+    pressureADC.readAllChannels(ADS8688_CS, true, ptVoltages);
+    delayMicroseconds(5);
+
+    for (int i = 4; i < 8; i++) {
       ptCalibrated[i] = getCalibratedValue(mValues[i - 4], bValues[i - 4], ptVoltages[i]);
+    }
+    if (waitForDRDY()) {
+    loadCell[0] = -58439.4371 * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1)) + 1.19746;
     }
   }
 
-  //ptCalibrated[4] = getCalibratedValue(mValues[2], bValues[2], ptVoltages[1]);
-
-  float loadCell[2] = { -1, -1 };
-  loadCell[0] = -58439.4371 * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1)) + 1.19746;
-  loadCell[1] = -395379.263 * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3)) + 27.13879;
-  char finalStr[400];
-  snprintf(
-    finalStr,
-    sizeof(finalStr),
-    // "A %4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f%l Z\n",
-    "rocket_data pt0=%4.10f,pt1=%4.10f,pt2=%4.10f,pt3=%4.10f,lc0=%4.10f,uptime_ms=%lu",
-    // "A %4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,%4.10f,"
-    // "%4.10f,%4.10f"
-    // "%l Z\n",
-    ptCalibrated[4],
-    ptCalibrated[5],
-    ptCalibrated[6],
-    ptCalibrated[7],
-    // ptCalibrated[4],
-    // ptCalibrated[5],
-    // ptCalibrated[6],
-    // ptCalibrated[7],
-    loadCell[0],
-    // loadCell[1],
-    millis());
-  // snprintf(
-  //   finalStr,
-  //   sizeof(finalStr),
-  //   "rocket_data pt0=%.4f,pt1=%.4f,pt2=%.4f,pt3=%.4f,pt4=%.4f,pt5=%.4f,pt6=%.4f,pt7=%.4f,lc0=%.4f,lc1=%.4f,uptime_ms=%lu",
-  //   ptCalibrated[0], ptCalibrated[1], ptCalibrated[2], ptCalibrated[3],
-  //   ptCalibrated[4], ptCalibrated[5], ptCalibrated[6], ptCalibrated[7],
-  //   loadCell[0], loadCell[1],
-  //   millis()
-  // );
-
-  // Serial.print(ptCalibrated[0]);
-  // Serial.print(" ");
-  // Serial.print(ptCalibrated[1]);
-  // Serial.print(" ");
-  // Serial.print(ptCalibrated[2]);
-  // Serial.print(" ");
-  // Serial.print(ptCalibrated[3]);
-  // Serial.print(" ");
-  // Serial.print(ptCalibrated[4]);
-  // Serial.print(" ");
-  // Serial.print(ptCalibrated[5]);
-  // Serial.print(" ");
-  // Serial.print(ptCalibrated[6]);
-  // Serial.print(" ");
-  // //Serial.print(ptCalibrated[7]);
-  // Serial.print(" ");
-  // Serial.println();
-
-  Serial.println(finalStr);
-
+  //MQTT MAINTENANCE
   connect_client();
-  client.loop();
 
+  if (millis() - lastMqttLoop > 20) {
+    lastMqttLoop = millis();
+    client.loop();
+  }
+
+  //PUBLISH 50 Hz
   if (millis() - lastPublish >= PUBLISH_INTERVAL) {
     lastPublish = millis();
+
+    char finalStr[300];
+    snprintf(
+      finalStr,
+      sizeof(finalStr),
+      "rocket_data pt0=%4.10f,pt1=%4.10f,pt2=%4.10f,pt3=%4.10f,lc0=%4.10f,uptime_ms=%lu",
+      ptCalibrated[4],
+      ptCalibrated[5],
+      ptCalibrated[6],
+      ptCalibrated[7],
+      loadCell[0],
+      millis()
+    );
+
+    Serial.println(finalStr);
 
     if (client.connected()) {
       client.publish(DAQ_TOPIC, finalStr);
     }
   }
 }
+
