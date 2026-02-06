@@ -1,6 +1,6 @@
-# This is the Documentation for setting up and usinng the DAQ Grafana pipeline
-Note: This was written with the MacOS in mind. If you are using windows, the steps are similar, but the syntax to get there might be different. 
-Note: If you don't have brew on Mac installed, install it. 
+# This is the Documentation for setting up and using the DAQ Grafana-Telegraf pipeline on MacOS
+Note: This was written with the MacOS in mind. If you are using windows, refer to the documentation for Windows 
+Note: If you don't have HomeBrew on Mac installed, run this: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 
 ## What to Install
 1. InfluxDB OSS V2
