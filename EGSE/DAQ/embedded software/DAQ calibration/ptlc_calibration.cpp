@@ -76,7 +76,7 @@ Serial.println("Invalid Value. Re-enter Value: ");
 line = Serial.readStringUntil('\n');
 line.trim();
 }
-while(!(line == "stop"))
+while(true)
 {
 if(line == "compute")
 {
