@@ -158,10 +158,7 @@ void loop() {
   //MQTT MAINTENANCE
   connect_client();
 
-  if (millis() - lastMqttLoop > 20) {
-    lastMqttLoop = millis();
     client.loop();
-  }
 
   //PUBLISH 100 Hz
   if (millis() - lastPublish >= PUBLISH_INTERVAL) {
