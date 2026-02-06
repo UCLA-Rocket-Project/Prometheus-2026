@@ -1,5 +1,6 @@
 # This is the Documentation for setting up and using the DAQ Grafana-Telegraf pipeline on MacOS
-Note: This was written with the MacOS in mind. If you are using windows, refer to the documentation for Windows 
+Note: This was written with the MacOS in mind. If you are using Windows, refer to the documentation for the Windows equivalent for this guide.
+
 Note: If you don't have HomeBrew on Mac installed, run this: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 
 ## What to Install
