@@ -63,7 +63,7 @@ Open: `[http](http://localhost:3000)`
 - Here, you'll be prompted to enter a username and password. Enter `admin` for both fields. You'll be prompted to create a new password right after.
 
 ## Setting up Python
-If you've already downloaded VSCode with Python & have run the requiremen, feel free to skip to the "Create a new folder......" section
+If you've already downloaded VSCode with Python, feel free to skip to the "Create a new folder..." section
 
 Install Visual Studio Code (VSCode)
 
