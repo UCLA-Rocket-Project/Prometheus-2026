@@ -27,12 +27,12 @@ Open `http://localhost:8086` to complete account setup in the UI
 
 ## Setting up Telegraf
 Run in PowerShell: 
-`wget `
+"wget `
 https://dl.influxdata.com/telegraf/releases/telegraf-1.37.1_windows_amd64.zip `
 -UseBasicParsing `
 -OutFile telegraf-1.37.1_windows_amd64.zip
 Expand-Archive .\telegraf-1.37.1_windows_amd64.zip `
--DestinationPath 'C:\Program Files\InfluxData\telegraf\'`
+-DestinationPath 'C:\Program Files\InfluxData\telegraf\'"
 
 
 Run this after:
