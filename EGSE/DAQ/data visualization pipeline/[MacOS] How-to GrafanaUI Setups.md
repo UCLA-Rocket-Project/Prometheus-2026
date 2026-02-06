@@ -63,5 +63,3 @@ Open in terminal `nano /opt/homebrew/etc/grafana/grafana.ini` (apple silicon) or
 
 To create an account, type admin for the passwrod and username and hit enter to start the new account creation process. 
 
-To link it to your influxdb, lowkey you can jut ask AI on how to do that.
-
