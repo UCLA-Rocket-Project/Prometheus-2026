@@ -26,7 +26,7 @@ Open `http://localhost:8086` to complete account setup in the UI
 - Save the API Token somewhere safe
 
 ## Setting up Telegraf
-Run in PowerShell (everything inside the " ": 
+Run in PowerShell (everything inside the " "): 
 " wget `
 https://dl.influxdata.com/telegraf/releases/telegraf-1.37.1_windows_amd64.zip `
 -UseBasicParsing `
