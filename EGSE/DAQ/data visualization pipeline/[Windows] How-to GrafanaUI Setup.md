@@ -1,7 +1,7 @@
 # This is the documentation for setting up and using the Grafana-Telegraf pipeline on Windows
 THIS IS NOT FINISHED, PLEASE DO NOT FOLLOW THIS DOC
 
-Note: This was written with Windows in mind. If you are using MacOS, refer to the documentation for the MacOS equivalent for this guide.
+Note: This was written with connecting to the DAQ & Windows in mind. If you are using MacOS, refer to the documentation for the MacOS equivalent for this guide.
 
 ## What to Install
 1. InfluxDB OSS V2
