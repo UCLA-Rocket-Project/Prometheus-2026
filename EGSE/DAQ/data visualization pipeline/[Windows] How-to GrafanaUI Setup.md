@@ -39,7 +39,7 @@ Run this after:
 `cd "C:\Program Files\InfluxData\telegraf";
 mv .\telegraf-1.37.1\telegraf.* .`
 
-In your File Explorer, navigate to the direction `C:\Program Files\InfluxData\telegraf` and open `telegraf.conf` (easiest if you use VSCode to open)
+In your File Explorer, navigate to the directory `C:\Program Files\InfluxData\telegraf` and open `telegraf.conf` (easiest if you use VSCode to open)
 
 Create a configuration file in the file path using the telegrafConfig.conf and name it something like `telegraf.conf`. Add the missing values as necessary based on your influxdb configurations.
 It's best to create a local project specific config file.
