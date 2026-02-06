@@ -54,10 +54,10 @@ Open in terminal `nano /opt/homebrew/etc/grafana/grafana.ini` (apple silicon) or
   -- ** Insert the code from Cold_Flow_Grafana_GUI.json into the import section **
     - remember to change the bucket to the name of your own influxdb bucket. remove the [] brackets too. Should be: `"bucket name"`
 
-  afterward MUST set grafana to reload faster
-    - Open dashboard 
-    - On the top right click edit, and open settings
-    - Scroll down to Time Options and at auto-refresh add 500ms as on option.
+  Afterward, you MUST set grafana to reload faster
+    - Open the dashboard UI
+    - On the top right click edit, and open settings (you should already be in the General tab after clicking Settings)
+    - Scroll down to Time Options and at auto-refresh add 500ms as on option. If this doesn't work, do `brew services restart grafana` and try again
 
 
 
