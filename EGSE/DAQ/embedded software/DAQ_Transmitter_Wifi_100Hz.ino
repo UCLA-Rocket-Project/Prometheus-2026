@@ -72,6 +72,9 @@ void setup_wifi() {
     delay(500);
     Serial.println("still connecting...");
   }
+
+  WiFi.setSleep(false);
+  
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
@@ -113,6 +116,7 @@ void setup() {
   // // WiFi + MQTT setup
   setup_wifi();
   client.setServer(mqtt_server, 1883);
+  client.setKeepAlive(60);
   Serial.println("Setup complete");
 }
 float getCalibratedValue(float m, float b, float raw) {
