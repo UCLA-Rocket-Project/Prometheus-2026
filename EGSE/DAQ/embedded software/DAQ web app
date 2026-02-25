@@ -1,0 +1,402 @@
+// THIS IS TRANSMITTER CODE + WEB APP (ESP32 HOSTED) + AP MODE + WEBSOCKET STREAMING
+
+#include <Arduino.h>
+#include <ADS1256.h>
+#include "ADS8688.h"
+#include <SPI.h>
+#include <string>
+#include <Adafruit_ADS1X15.h>
+#include <HardwareSerial.h>
+
+// ---- NEW: WiFi + Web server ----
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <ArduinoJson.h>
+
+// ===================== Pins & HW =====================
+// Load Cell (ADS1256) SPI Pins
+#define ADS1256_MISO 35
+#define ADS1256_SCLK 48
+#define ADS1256_MOSI 34
+#define ADS1256_CS   7
+#define ADS1256_DRDY 4
+
+// PT (ADS8688) SPI Pin
+#define ADS8688_CS 36
+
+// LED indicator pin
+#define LED 38
+
+#define RO_PIN 44 //16
+#define DI_PIN 43 //17
+#define DE_RE_PIN 41 //23
+
+HardwareSerial rs485Serial(2);
+
+// SPI bus shared between both ADCs
+SPIClass sharedSPI(FSPI);
+
+// ADS1256 instance
+ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
+
+bool printedAPInfo = false;
+
+// ADS8688 instance
+ADS8688 pressureADC;
+
+// ===================== Calibration =====================
+float calibrationA1 = -57938.14;
+float calibrationB1 = 1.16948;
+float convertToWeightLC1(float voltage) { return (calibrationA1 * voltage) + calibrationB1; }
+
+float calibrationA2 = -401428.57;
+float calibrationB2 = -3.46143;
+float convertToWeightLC2(float voltage) { return (calibrationA2 * voltage) + calibrationB2; }
+
+float getCalibratedValue(float m, float b, float raw) { return (raw - b) / m; }
+
+float mValues[4] = {5.077578, 5.073776, 5.042717, 8.125911};
+float bValues[4] = {1081.752319, 1063.822266, 1080.457153, 1139.25354};
+
+// ===================== AP Mode Config =====================
+const char* AP_SSID = "ESP32-ROCKET";
+const char* AP_PASS = "12345678"; // >= 8 chars
+
+// ===================== Web App / WebSocket =====================
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+
+// Simple live dashboard page served by ESP32, no external CDN
+static const char INDEX_HTML[] PROGMEM =
+"<!doctype html>"
+"<html>"
+"<head>"
+"  <meta charset='utf-8'/>"
+"  <meta name='viewport' content='width=device-width,initial-scale=1'/>"
+"  <title>Rocket Telemetry</title>"
+"  <style>"
+"    body{font-family:sans-serif;margin:16px;background:#111;color:#eee;}"
+"    .card{padding:10px 14px;border:1px solid #333;border-radius:10px;margin-bottom:12px;background:#181818;}"
+"    .row{display:flex;justify-content:space-between;padding:4px 0;font-size:0.9rem;}"
+"    .charts{max-width:960px;margin-top:12px;}"
+"    canvas{width:100%;height:320px;}"
+"  </style>"
+"</head>"
+"<body>"
+"  <h2>Rocket Telemetry</h2>"
+"  <div class='card'>"
+"    <div class='row'><span>WebSocket</span><span id='ws'>connecting...</span></div>"
+"    <div class='row'><span>uptime (ms)</span><span id='up'>-</span></div>"
+"  </div>"
+"  <div class='card charts'>"
+"    <h3>Pressure Transducer pt0</h3>"
+"    <canvas id='pt0Chart'></canvas>"
+"  </div>"
+"  <div class='card charts'>"
+"    <h3>Pressure Transducer pt1</h3>"
+"    <canvas id='pt1Chart'></canvas>"
+"  </div>"
+"  <div class='card charts'>"
+"    <h3>Pressure Transducer pt2</h3>"
+"    <canvas id='pt2Chart'></canvas>"
+"  </div>"
+"  <div class='card charts'>"
+"    <h3>Pressure Transducer pt3</h3>"
+"    <canvas id='pt3Chart'></canvas>"
+"  </div>"
+"  <div class='card charts'>"
+"    <h3>Load Cell (lc0)</h3>"
+"    <canvas id='lcChart'></canvas>"
+"  </div>"
+"  <script>"
+"    const el = id => document.getElementById(id);"
+"    const sock = new WebSocket('ws://' + location.host + '/ws');"
+"    sock.onopen  = () => el('ws').textContent = 'connected';"
+"    sock.onclose = () => el('ws').textContent = 'disconnected';"
+"    sock.onerror = () => el('ws').textContent = 'error';"
+"    const MAX_POINTS = 300;"
+"    const ptCanvases = ["
+"      document.getElementById('pt0Chart'),"
+"      document.getElementById('pt1Chart'),"
+"      document.getElementById('pt2Chart'),"
+"      document.getElementById('pt3Chart')"
+"    ];"
+"    const lcCanvas = document.getElementById('lcChart');"
+"    const ptCtxs = ptCanvases.map(c => c.getContext('2d'));"
+"    const lcCtx = lcCanvas.getContext('2d');"
+"    const dpr = window.devicePixelRatio || 1;"
+"    function resizeCanvas(canvas, ctx) {"
+"      const rect = canvas.getBoundingClientRect();"
+"      canvas.width  = rect.width  * dpr;"
+"      canvas.height = rect.height * dpr;"
+"      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);"
+"    }"
+"    window.addEventListener('resize', () => {"
+"      for (let i = 0; i < ptCanvases.length; i++) resizeCanvas(ptCanvases[i], ptCtxs[i]);"
+"      resizeCanvas(lcCanvas, lcCtx);"
+"      redraw();"
+"    });"
+"    const ptData = [[],[],[],[]];"
+"    const lcData = [];"
+"    const labels = [];"
+"    function addPoint(arr, value) {"
+"      arr.push(value);"
+"      if (arr.length > MAX_POINTS) arr.shift();"
+"    }"
+"    function drawChart(ctx, series, colors, labelArr, title) {"
+"      const w = ctx.canvas.width / dpr;"
+"      const h = ctx.canvas.height / dpr;"
+"      ctx.clearRect(0,0,w,h);"
+"      ctx.fillStyle = '#111';"
+"      ctx.fillRect(0,0,w,h);"
+"      if (labelArr.length < 2) return;"
+"      let min = Infinity, max = -Infinity;"
+"      series.forEach(s => s.forEach(v => {"
+"        if (v === null || isNaN(v)) return;"
+"        if (v < min) min = v;"
+"        if (v > max) max = v;"
+"      }));"
+"      if (!isFinite(min) || !isFinite(max)) return;"
+"      if (Math.abs(max - min) < 1e-6) {"
+"        max += 1; min -= 1;"
+"      }"
+"      const xMin = labelArr[0];"
+"      const xMax = labelArr[labelArr.length-1];"
+"      const left = 35, right = 5, top = 10, bottom = 20;"
+"      const x0 = left, x1 = w - right, y0 = h - bottom, y1 = top;"
+"      ctx.strokeStyle = '#444';"
+"      ctx.lineWidth = 1;"
+"      ctx.beginPath();"
+"      ctx.moveTo(x0, y0); ctx.lineTo(x1, y0);"
+"      ctx.moveTo(x0, y0); ctx.lineTo(x0, y1);"
+"      ctx.stroke();"
+"      ctx.fillStyle = '#ccc';"
+"      ctx.font = '10px sans-serif';"
+"      ctx.fillText(max.toFixed(3), 2, y1 + 8);"
+"      ctx.fillText(min.toFixed(3), 2, y0);"
+"      const n = labelArr.length;"
+"      series.forEach((s, si) => {"
+"        ctx.strokeStyle = colors[si];"
+"        ctx.beginPath();"
+"        let started = false;"
+"        let lastX = null, lastY = null, lastV = null;"
+"        for (let i = 0; i < n; i++) {"
+"          const v = s[s.length - n + i];"
+"          if (v === null || isNaN(v)) continue;"
+"          const t = i / (n - 1);"
+"          const x = x0 + t * (x1 - x0);"
+"          const y = y0 - (v - min) * (y0 - y1) / (max - min);"
+"          if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }"
+"          lastX = x; lastY = y; lastV = v;"
+"        }"
+"        ctx.stroke();"
+"        if (lastX !== null && lastY !== null && lastV !== null) {"
+"          ctx.fillStyle = colors[si];"
+"          ctx.beginPath();"
+"          ctx.arc(lastX, lastY, 2.5, 0, Math.PI*2);"
+"          ctx.fill();"
+"          ctx.fillStyle = '#fff';"
+"          ctx.font = '10px sans-serif';"
+"          let tx = lastX + 4;"
+"          let ty = lastY - 4;"
+"          if (tx > w - 40) tx = w - 40;"
+"          if (ty < 12) ty = 12;"
+"          ctx.fillText(lastV.toFixed(3), tx, ty);"
+"        }"
+"      });"
+"      if (title) {"
+"        ctx.fillStyle = '#eee';"
+"        ctx.fillText(title, left, y1 + 8);"
+"      }"
+"    }"
+"    function redraw() {"
+"      const colorsPT = ['#e74c3c','#3498db','#2ecc71','#f1c40f'];"
+"      const colorsLC = ['#9b59b6'];"
+"      for (let i = 0; i < 4; i++) {"
+"        drawChart(ptCtxs[i], [ptData[i]], [colorsPT[i]], labels, 'pt' + i);"
+"      }"
+"      drawChart(lcCtx, [lcData], colorsLC, labels, 'lc0');"
+"    }"
+"    sock.onmessage = (evt) => {"
+"      const d = JSON.parse(evt.data);"
+"      if (d.uptime_ms !== undefined) {"
+"        el('up').textContent = d.uptime_ms;"
+"      }"
+"      const x = (d.uptime_ms !== undefined) ? d.uptime_ms : (labels.length ? labels[labels.length-1] + 1 : 0);"
+"      labels.push(x);"
+"      if (labels.length > MAX_POINTS) labels.shift();"
+"      const pts = [d.pt0,d.pt1,d.pt2,d.pt3];"
+"      for (let i = 0; i < 4; i++) {"
+"        addPoint(ptData[i], (pts[i] !== undefined ? pts[i] : null));"
+"      }"
+"      addPoint(lcData, (d.lc0 !== undefined ? d.lc0 : null));"
+"      if (ptCanvases[0].width === 0 || ptCanvases[0].height === 0) {"
+"        for (let i = 0; i < ptCanvases.length; i++) resizeCanvas(ptCanvases[i], ptCtxs[i]);"
+"        resizeCanvas(lcCanvas, lcCtx);"
+"      }"
+"      redraw();"
+"    };"
+"  </script>"
+"</body>"
+"</html>";
+
+struct Telemetry {
+  float pt0 = NAN, pt1 = NAN, pt2 = NAN, pt3 = NAN;
+  float lc0 = NAN;
+  uint32_t uptime_ms = 0;
+};
+
+Telemetry telem;
+
+void broadcastTelemetry() {
+  StaticJsonDocument<256> doc;
+  doc["pt0"] = telem.pt0;
+  doc["pt1"] = telem.pt1;
+  doc["pt2"] = telem.pt2;
+  doc["pt3"] = telem.pt3;
+  doc["lc0"] = telem.lc0;
+  doc["uptime_ms"] = telem.uptime_ms;
+
+  char out[256];
+  size_t n = serializeJson(doc, out, sizeof(out));
+  ws.textAll(out, n);
+}
+
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
+               AwsEventType type, void *arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
+    // push one packet immediately on connect
+    broadcastTelemetry();
+  }
+}
+
+void setupWeb() {
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
+
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", INDEX_HTML);
+  });
+
+  server.on("/health", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", "ok");
+  });
+
+  server.begin();
+}
+
+// ===================== AP Mode WiFi =====================
+void setupWiFiAP() {
+  Serial.println("[WiFi] Starting AP...");
+
+  WiFi.disconnect(true, true);
+  delay(200);
+
+  WiFi.mode(WIFI_AP);
+  delay(200);
+
+  bool ok = WiFi.softAP(AP_SSID, AP_PASS, 1 /*channel*/, 0 /*hidden*/, 8 /*max conn*/);
+  delay(200);
+
+  Serial.print("[WiFi] softAP ok = "); Serial.println(ok ? "true" : "false");
+  Serial.print("[WiFi] AP IP = "); Serial.println(WiFi.softAPIP());
+  Serial.println("[WiFi] Open: http://192.168.4.1/");
+}
+
+// ===================== Your original setup/loop =====================
+void setup() {
+  pinMode(DE_RE_PIN, OUTPUT);
+  digitalWrite(DE_RE_PIN, HIGH);
+
+  rs485Serial.begin(115200, SERIAL_8N1, RO_PIN, DI_PIN);
+  Serial.begin(115200);
+  delay(1500);                 // give serial monitor time
+  Serial.println("\n\n*** SETUP STARTED ***");
+
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, HIGH);
+
+  // Start custom SPI bus
+  sharedSPI.begin(ADS1256_SCLK, ADS1256_MISO, ADS1256_MOSI, -1);
+
+  // Initialize ADS1256 (Load Cell)
+  loadCellADC.InitializeADC();
+  loadCellADC.setPGA(PGA_64);
+  loadCellADC.setDRATE(DRATE_1000SPS);
+
+  // Initialize ADS8688 (PTs)
+  pressureADC.begin(ADS1256_MISO, ADS1256_SCLK, ADS1256_MOSI, ADS8688_CS, 4.1, 0x05);
+  pressureADC.setInputRange(ADS8688_CS, 0x05);
+
+  // ---- NEW: start AP + web app ----
+  setupWiFiAP();
+  setupWeb();
+
+  Serial.println("Setup complete");
+}
+
+unsigned long lastPush = 0;
+const unsigned long PUSH_PERIOD_MS = 500; // 500ms web updates
+
+void loop() {
+
+  if (!printedAPInfo) {
+    printedAPInfo = true;
+    Serial.println("\n=== AP MODE STARTED ===");
+    Serial.print("AP SSID: "); Serial.println(AP_SSID);
+    Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
+    Serial.println("Open: http://192.168.4.1/");
+}
+
+  // --- PT Measurements (8 channels) ---
+  float ptVoltages[8];
+  float ptCalibrated[8];
+  pressureADC.readAllChannels(ADS8688_CS, true, ptVoltages);
+
+  for (int i = 0; i < 8; i++) {
+    if (i >= 4) {
+      ptCalibrated[i] = getCalibratedValue(mValues[i - 4], bValues[i - 4], ptVoltages[i]);
+    }
+  }
+
+  float loadCell[2] = {-1, -1};
+  loadCell[0] = -58439.4371 * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1)) + 1.19746;
+  loadCell[1] = -395379.263  * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3)) + 27.13879;
+
+  char finalStr[400];
+  snprintf(
+    finalStr,
+    sizeof(finalStr),
+    "rocket_data pt0=%.4f,pt1=%.4f,pt2=%.4f,pt3=%.4f,lc0=%.4f,uptime_ms=%lu",
+    ptCalibrated[4],
+    ptCalibrated[5],
+    ptCalibrated[6],
+    ptCalibrated[7],
+    loadCell[0],
+    millis()
+  );
+
+  Serial.println(finalStr);
+  rs485Serial.println(finalStr);
+
+  // ---- NEW: update telemetry struct for the web app ----
+  telem.pt0 = ptCalibrated[4];
+  telem.pt1 = ptCalibrated[5];
+  telem.pt2 = ptCalibrated[6];
+  telem.pt3 = ptCalibrated[7];
+  telem.lc0 = loadCell[0];
+  telem.uptime_ms = millis();
+
+  // ---- NEW: push to all connected clients every 500ms ----
+  unsigned long now = millis();
+  if (now - lastPush >= PUSH_PERIOD_MS) {
+    lastPush = now;
+    broadcastTelemetry();
+  }
+
+  // Keep websocket client list clean
+  ws.cleanupClients();
+
+  delay(10);
+}
