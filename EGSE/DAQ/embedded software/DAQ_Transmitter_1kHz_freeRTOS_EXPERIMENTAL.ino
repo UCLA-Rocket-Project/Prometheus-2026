@@ -40,7 +40,7 @@ static unsigned long lastMqttLoop = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
 const unsigned long SAMPLE_INTERVAL = 1;   // 1 kHz
-const unsigned long PUBLISH_INTERVAL = 10; // 100 Hz
+const unsigned long PUBLISH_INTERVAL = 1; // 1 kHz
 
 // WiFi + MQTT credentials
 const char *ssid = "ILAY";
@@ -136,6 +136,7 @@ bool waitForDRDY(uint32_t timeout_us = 2000)
 
 void samplingTask(void *pvParameters)
 {
+  Serial.println("SAMPLING TASK");
   TickType_t lastWakeTime = xTaskGetTickCount();
 
   float ptVoltages[8];
@@ -192,7 +193,7 @@ void samplingTask(void *pvParameters)
 
 void publishTask(void *pvParameters)
 {
-
+  Serial.println("PUBLISH TASK");
   char finalStr[300];
   SensorData localCopy;
 
