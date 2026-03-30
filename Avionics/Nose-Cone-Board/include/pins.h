@@ -4,7 +4,7 @@
 // =========================
 // GPS (I2C)
 // =========================
-#define GPS_SDA 22
+#define GPS_SDA 10
 #define GPS_SCL 21
 #define gnssAddress 0x42
 
