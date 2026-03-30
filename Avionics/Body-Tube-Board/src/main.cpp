@@ -23,6 +23,20 @@ ADS1256 adc(DRDY, -1, -1, SPI4_CS, 2.500, &adcSpi);
 // --------------------------------------------------
 // Globals from original baseline
 // --------------------------------------------------
+float baseline = 0.0;
+bool baselineSet = false;
+
+const float CHANGE_THRESHOLD = 0.0002; // adjust if needed
+
+float readAverage(int n)
+{
+    double sum = 0.0;
+    for (int i = 0; i < n; i++)
+    {
+        sum += adc.convertToVoltage(adc.readSingle());
+    }
+    return sum / n;
+}
 long rawConversion = 0;
 float voltageValue = 0;
 
@@ -86,6 +100,7 @@ static void printBanner()
 {
     Serial.println();
     Serial.println("======================================");
+    Serial.println("=== GAIN 64 TEST BUILD ===");
     Serial.println("Body Tube Board ADS1256 PlatformIO Test");
     Serial.println("ESP32-S3 + SPI4 ADC bus");
     Serial.println("DRDY=14 CS=8 SCK=17 MISO=16 MOSI=15");
@@ -126,7 +141,7 @@ void setup()
     adc.InitializeADC();
 
     // Same initial config as your baseline
-    adc.setPGA(PGA_1);
+    adc.setPGA(PGA_64);
     adc.setMUX(DIFF_6_7);
     adc.setDRATE(DRATE_5SPS);
 
@@ -143,7 +158,7 @@ void setup()
     delay(100);
 
     digitalWrite(LED1, HIGH);
-    delay(250);
+    delay(1000);
     digitalWrite(LED1, LOW);
 
     Serial.println("Ready. Send commands over serial.");
@@ -168,14 +183,46 @@ void loop()
     case 'L': // Self-calibration
         adc.sendDirectCommand(SELFCAL);
         break;
-
-    case 'G': // Read a single input continuously
-        while (Serial.read() != 's')
+    case 'G':
+    {
+        // Set baseline once
+        if (!baselineSet)
         {
-            Serial.println(adc.convertToVoltage(adc.readSingleContinuous()), 6);
+            baseline = readAverage(10);
+            baselineSet = true;
+
+            Serial.print("Baseline: ");
+            Serial.println(baseline, 6);
         }
-        adc.stopConversion();
+
+        while (true)
+        {
+            // Stop if 's' is pressed
+            if (Serial.available() > 0 && Serial.read() == 's')
+            {
+                break;
+            }
+
+            float value = readAverage(10);
+            float delta = value - baseline;
+
+            Serial.print("Value: ");
+            Serial.print(value, 6);
+            Serial.print("  Delta: ");
+            Serial.print(delta, 6);
+
+            if (abs(delta) > CHANGE_THRESHOLD)
+            {
+                Serial.print("  CHANGE DETECTED");
+            }
+
+            Serial.println();
+
+            delay(200); // slow it down so you can read it
+        }
+
         break;
+    }
 
     case 'C': // Cycle single-ended inputs
         while (Serial.read() != 's')
