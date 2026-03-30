@@ -1,0 +1,22 @@
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+
+IndentPPDirectives: BeforeHash
+
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+
+SortIncludes: true
+
+ColumnLimit: 100
+
+BinPackArguments: false
+AlignAfterOpenBracket: BlockIndent
+PenaltyBreakBeforeFirstCallParameter: 1
+
+AlignTrailingComments: true
+PointerAlignment: Right
