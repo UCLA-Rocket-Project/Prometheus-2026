@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <Wire.h> //Needed for I2C to GNSS
 
+#include "pins.h"
+
 #include <SparkFun_u-blox_GNSS_v3.h>
 
 #include <SPI.h>
@@ -15,11 +17,6 @@
 
 #include "SD.h"
 #include "FS.h"
-
-// GPS
-#define GPS_SDA 22
-#define GPS_SCL 21
-#define gnssAddress 0x42
 
 SFE_UBLOX_GNSS myGNSS;
 TwoWire wire = TwoWire(0);
