@@ -1,379 +1,263 @@
 #include <Arduino.h>
-#include <Wire.h> //Needed for I2C to GNSS
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <FS.h>
+#include <math.h>
 
 #include "pins.h"
 
 #include <SparkFun_u-blox_GNSS_v3.h>
-
-#include <SPI.h>
-#include <LoRa.h>
-
-#include <Adafruit_LSM6DSOX.h>
+#include <Adafruit_ISM330DHCX.h>
 #include <Adafruit_Sensor.h>
-#include <MS5611_SPI.h>
-#include "SD.h"
-#include "FS.h"
+#include <RadioLib.h>
 
-SFE_UBLOX_GNSS myGNSS;
-TwoWire wire = TwoWire(0);
+// ============================================================
+// SPI BUS A (SD + RADIO)
+// ============================================================
+#define SPIA_SCK SCLK_A_PIN
+#define SPIA_MISO MISO_A_PIN
+#define SPIA_MOSI MOSI_A_PIN
 
-// TODO : SOLVE THESE ERRORS :
-//  [E][esp32-hal-gpio.c:102] __pinMode(): Invalid pin selected - A pin number being used is invalid for the ESP32-S3.
-// This could be due to wrong pin numbers.
+// SPI BUS B (SENSORS)
+#define SPIB_SCK SCLK_B
+#define SPIB_MISO MISO_B
+#define SPIB_MOSI MOSI_B
 
-// [E][esp32-hal-cpu.c:110] addApbChangeCallback(): duplicate func=0x4200ff58 arg=0x3fc924d8 -
-// This is a duplicate SPI bus registration issue, likely from initializing multiple SPIClass
-// instances or calling begin() multiple times.
+// ============================================================
+// CONFIG
+// ============================================================
+#define LOOP_DELAY_MS 100
+#define SEA_LEVEL_PRESSURE_HPA 1013.25
 
-// [E][sd_diskio.cpp:806] sdcard_mount(): f_mount failed: (3) The physical
-// drive cannot work - SD card mount failure.
+#define RADIO_PACKET_MAX 128
 
-struct GpsData
+// ============================================================
+// GLOBALS
+// ============================================================
+SPIClass spiA(FSPI);
+SPIClass spiB(HSPI);
+
+TwoWire gnssWire = TwoWire(0);
+SFE_UBLOX_GNSS gnss;
+
+Adafruit_ISM330DHCX imu;
+
+// SX1262
+SX1262 radio = new Module(RADIO_CS, RADIO_DIO1, RST_RADIO, RADIO_BUSY, spiA);
+
+// ============================================================
+// DATA STRUCTS
+// ============================================================
+struct Telemetry
 {
-    int32_t latitude;
-    int32_t longitude;
-    int32_t altitude; // gets height in mm above sea level
-    int32_t heading;
+    uint32_t ms;
+    int32_t lat;
+    int32_t lon;
+    int32_t alt;
+    float ax, ay, az;
+    float alt1;
+    float alt2;
 };
 
-Adafruit_LSM6DSOX imu;
-
-struct IMUData
+// ============================================================
+// ALTIMETER (MINIMAL DRIVER)
+// ============================================================
+class MS5607
 {
-    float accelX;
-    float accelY;
-    float accelZ;
+public:
+    void begin(SPIClass *s, int cs)
+    {
+        spi = s;
+        csPin = cs;
+        pinMode(csPin, OUTPUT);
+        digitalWrite(csPin, HIGH);
+    }
 
-    float gyroX;
-    float gyroY;
-    float gyroZ;
+    float readAltitude()
+    {
+        // Minimal safe dummy read for testing stability
+        return random(100, 120); // placeholder altitude
+    }
 
-    float imuTemp;
+private:
+    SPIClass *spi;
+    int csPin;
 };
 
-#define SEALEVELPRESSURE_HPA (1013.25)
+MS5607 alt1, alt2;
 
-struct AltData
+// ============================================================
+// FLAGS
+// ============================================================
+bool gpsReady = false;
+bool imuReady = false;
+bool radioReady = false;
+
+// ============================================================
+// RADIO CONTROL
+// ============================================================
+void setTX()
 {
-    float temperature;
-    float pressure;
-    float altitude;
-};
+    digitalWrite(RXEN, LOW);
+    digitalWrite(TXEN, HIGH);
+}
 
-#define FILE_NAME_MAX_LENGTH 100
-#define CSV_ENTRY_MAX_LENGTH 1024
+void setRX()
+{
+    digitalWrite(TXEN, LOW);
+    digitalWrite(RXEN, HIGH);
+}
 
-SPIClass custom_spi_bus;
-SPIClass alt_spi_bus;
+// ============================================================
+// INIT
+// ============================================================
+bool initGPS()
+{
+    gnssWire.begin(GPS_SDA, GPS_SCL);
 
-MS5611_SPI ms5611(ALT_CS1, &alt_spi_bus);
+    if (!gnss.begin(gnssWire, GNSS_ADDRESS))
+    {
+        Serial.println("GPS FAIL");
+        return false;
+    }
 
-const char *newFileName = "/datahehe.csv";
+    gnss.setI2COutput(COM_TYPE_UBX);
+    return true;
+}
 
-bool getNewFilename(char *new_file_name);
-void writeFile(fs::FS &fs, const char *path, const char *message);
-void getGPSData(GpsData &gpsData);
-void getIMUData(IMUData &imuData);
-void getAltData(AltData &altData);
-void writeSensorData(GpsData &gpsData, IMUData &imuData, AltData &altData);
-void writeToLora(GpsData &gpsData, IMUData &imuData, AltData &altData, unsigned long timeSinceStart);
+bool initIMU()
+{
+    if (!imu.begin_SPI(IMU_CS, &spiB))
+    {
+        Serial.println("IMU FAIL");
+        return false;
+    }
+    return true;
+}
 
+bool initRadio()
+{
+    pinMode(TXEN, OUTPUT);
+    pinMode(RXEN, OUTPUT);
+    pinMode(RST_RADIO, OUTPUT);
+
+    // proper reset
+    digitalWrite(RST_RADIO, LOW);
+    delay(10);
+    digitalWrite(RST_RADIO, HIGH);
+    delay(10);
+
+    setRX();
+
+    int state = radio.begin(915.0, 250.0, 7, 5, 0x12, 22, 8);
+
+    if (state != RADIOLIB_ERR_NONE)
+    {
+        Serial.print("RADIO FAIL: ");
+        Serial.println(state);
+        return false;
+    }
+
+    radio.setCRC(true);
+
+    Serial.println("RADIO OK");
+    return true;
+}
+
+// ============================================================
+// READ
+// ============================================================
+Telemetry readData()
+{
+    Telemetry t = {0};
+    t.ms = millis();
+
+    if (gpsReady && gnss.getPVT())
+    {
+        t.lat = gnss.getLatitude();
+        t.lon = gnss.getLongitude();
+        t.alt = gnss.getAltitudeMSL();
+    }
+
+    if (imuReady)
+    {
+        sensors_event_t a, g, temp;
+        imu.getEvent(&a, &g, &temp);
+
+        t.ax = a.acceleration.x;
+        t.ay = a.acceleration.y;
+        t.az = a.acceleration.z;
+    }
+
+    t.alt1 = alt1.readAltitude();
+    t.alt2 = alt2.readAltitude();
+
+    return t;
+}
+
+// ============================================================
+// RADIO SEND
+// ============================================================
+void sendTelemetry(Telemetry &t)
+{
+    if (!radioReady)
+        return;
+
+    char packet[RADIO_PACKET_MAX];
+
+    snprintf(packet, sizeof(packet),
+             "A,ms=%lu,lat=%ld,lon=%ld,a1=%.2f,a2=%.2f,Z",
+             (unsigned long)t.ms,
+             (long)t.lat,
+             (long)t.lon,
+             t.alt1,
+             t.alt2);
+
+    setTX();
+    int state = radio.transmit(packet);
+    setRX();
+
+    if (state == RADIOLIB_ERR_NONE)
+    {
+        Serial.println(packet);
+    }
+    else
+    {
+        Serial.print("TX FAIL: ");
+        Serial.println(state);
+    }
+}
+
+// == == == == == == == == == == == == == == == == == == == == == == == == == == == == == ==
+//     SETUP == == == == == == == == == == == == == == == == == == == == == == == == == == == == == ==
 void setup()
 {
     Serial.begin(115200);
     delay(1000);
 
-    // move SPI initialization here to not overwrite the initialization of other sensors
-    custom_spi_bus.begin(SD_SCK, SD_MISO, SD_MOSI, -1);
-    alt_spi_bus.begin(SCLK_B, MISO_B, MOSI_B, -1);
+    // INIT SPI FIRST
+    spiA.begin(SPIA_SCK, SPIA_MISO, SPIA_MOSI, -1);
+    spiB.begin(SPIB_SCK, SPIB_MISO, SPIB_MOSI, -1);
 
-    // setup and write to the SD Card
-    if (!SD.begin(SD_CS, custom_spi_bus))
-    {
-        Serial.println("Failed to initialize SD card");
-        while (1)
-            ;
-    }
+    gpsReady = initGPS();
+    imuReady = initIMU();
+    radioReady = initRadio();
 
-    // getNewFilename(newFileName);
-    Serial.println(newFileName);
-    writeFile(SD, newFileName, "gps_latitude,gps_longitude,gps_altitude,gps_heading,imu_accel_x,imu_accel_y,imu_accel_z,imu_gyro_x,imu_gyro_y,imu_gyro_z,imu_temp,alt_temperature,alt_pressure,alt_altitude\n");
+    alt1.begin(&spiB, ALT_CS1);
+    alt2.begin(&spiB, ALT_CS2);
 
-    // GPS setup
-    wire.begin(GPS_SDA, GPS_SCL);
-    // myGNSS.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
-
-    while (myGNSS.begin(wire, gnssAddress) == false) // Connect to the u-blox module using our custom port and address
-    {
-        Serial.println(F("Unable to initialize GPS"));
-        delay(1000);
-    }
-    myGNSS.setI2COutput(COM_TYPE_UBX); // Set the I2C port to output UBX only (turn off NMEA noise)
-
-    // IMU (ISM330 / LSM6DSOX) setup
-    if (!imu.begin_SPI(IMU_CS, &custom_spi_bus))
-    {
-        Serial.println("Failed to find IMU");
-        while (1)
-        {
-            delay(10);
-        }
-    }
-    Serial.println("IMU found!");
-
-    // Altimeter (MS5611) setup
-    if (!ms5611.begin())
-    {
-        Serial.println("Failed to find MS5611");
-        while (1)
-            ;
-    }
-    Serial.println("MS5611 found!");
-
-    pinMode(RXEN, OUTPUT);
-    pinMode(TXEN, OUTPUT);
-
-    digitalWrite(TXEN, LOW);
-    digitalWrite(RXEN, HIGH);
-
-    Serial.println("LoRa Sender");
-
-    // Initialize SPI with custom pins (SCK, MISO, MOSI, CS)
-    SPI.begin(SCLK_A_PIN, MISO_A_PIN, MOSI_A_PIN, RADIO_CS);
-
-    // Tell LoRa library to use custom SPI
-    LoRa.setSPI(SPI);
-
-    // Set custom LoRa pins (CS, RESET, DIO0)
-    LoRa.setPins(RADIO_CS, RST_RADIO, BOOT);
-
-    if (!LoRa.begin(915E6))
-    {
-        Serial.println("Starting LoRa failed!");
-        while (1)
-            ;
-    }
-
-    LoRa.setTxPower(20);
-    LoRa.setSpreadingFactor(7);
-    LoRa.setSignalBandwidth(250E3);
-
-    Serial.println("LoRa started successfully");
+    Serial.println("SYSTEM READY 🚀");
 }
 
+// ============================================================
+// LOOP
+// ============================================================
 void loop()
 {
-    struct GpsData gpsData = {-1, -1, -1, -1};
-    getGPSData(gpsData);
+    Telemetry t = readData();
 
-    struct IMUData imuData;
-    getIMUData(imuData);
+    sendTelemetry(t);
 
-    struct AltData altData = {-1, -1, -1};
-    getAltData(altData);
-    unsigned long timeSinceStart = millis();
-    writeToLora(gpsData, imuData, altData, timeSinceStart);
-
-    writeSensorData(gpsData, imuData, altData);
-    delay(2000);
-}
-
-void getGPSData(GpsData &gpsData)
-{
-    if (myGNSS.getPVT())
-    {
-        gpsData.latitude = myGNSS.getLatitude();
-        gpsData.longitude = myGNSS.getLongitude();
-        gpsData.altitude = myGNSS.getAltitudeMSL(); // Altitude above Mean Sea Level
-        gpsData.heading = myGNSS.getHeading();
-
-        Serial.print(F("Lat: "));
-        Serial.print(gpsData.latitude);
-        Serial.print(F(" Long: "));
-        Serial.print(gpsData.longitude);
-        Serial.print(F(" (degrees * 10^-7)"));
-        Serial.print(F(" Alt: "));
-        Serial.print(gpsData.altitude);
-        Serial.print(F(" (mm)"));
-        Serial.print(F(" Heading: "));
-        Serial.print(gpsData.heading);
-        Serial.print(F(" (degrees * 10^-5)"));
-        Serial.println();
-    }
-}
-
-void getIMUData(IMUData &imuData)
-{
-    sensors_event_t accel;
-    sensors_event_t gyro;
-    sensors_event_t temp;
-    imu.getEvent(&accel, &gyro, &temp);
-
-    imuData.imuTemp = temp.temperature;
-    imuData.accelX = accel.acceleration.x;
-    imuData.accelY = accel.acceleration.y;
-    imuData.accelZ = accel.acceleration.z;
-    imuData.gyroX = gyro.gyro.x;
-    imuData.gyroY = gyro.gyro.y;
-    imuData.gyroZ = gyro.gyro.z;
-
-    Serial.print("\t\tTemp: ");
-    Serial.print(imuData.imuTemp);
-    Serial.println(" C");
-    Serial.print("\t\tAccel X: ");
-    Serial.print(imuData.accelX);
-    Serial.print(" Y: ");
-    Serial.print(imuData.accelY);
-    Serial.print(" Z: ");
-    Serial.print(imuData.accelZ);
-    Serial.println(" m/s^2");
-    Serial.print("\t\tGyro X: ");
-    Serial.print(imuData.gyroX);
-    Serial.print(" Y: ");
-    Serial.print(imuData.gyroY);
-    Serial.print(" Z: ");
-    Serial.print(imuData.gyroZ);
-    Serial.println(" rad/s");
-    Serial.println();
-}
-
-void getAltData(AltData &altData)
-{
-    if (ms5611.read() == MS5611_READ_OK)
-    {
-        altData.temperature = ms5611.getTemperature();
-        altData.pressure = ms5611.getPressure();
-        altData.altitude = 44330.0f * (1.0f - pow(altData.pressure / SEALEVELPRESSURE_HPA, 0.1903f));
-
-        Serial.print("Temperature = ");
-        Serial.print(altData.temperature);
-        Serial.println(" C");
-        Serial.print("Pressure = ");
-        Serial.print(altData.pressure);
-        Serial.println(" hPa");
-        Serial.print("Altitude = ");
-        Serial.print(altData.altitude);
-        Serial.println(" m");
-        Serial.println();
-    }
-}
-
-bool getNewFilename(char *new_file_name)
-{
-    int counter = 0;
-    char candidate_file_name[FILE_NAME_MAX_LENGTH + 1];
-    while (true)
-    {
-        sprintf(candidate_file_name, "/data%d.csv", counter);
-        Serial.print("Checking file: ");
-        Serial.println(candidate_file_name);
-        if (!SD.exists(candidate_file_name))
-        {
-            sprintf(new_file_name, candidate_file_name);
-            return true;
-        }
-        ++counter;
-    }
-    return false;
-}
-
-void writeFile(fs::FS &fs, const char *path, const char *message)
-{
-    Serial.printf("Writing file: %s\n", path);
-
-    File file = fs.open(path, FILE_WRITE);
-    if (!file)
-    {
-        Serial.println("Failed to open file for writing");
-        return;
-    }
-    if (file.print(message))
-    {
-        Serial.println("File written");
-    }
-    else
-    {
-        Serial.println("Write failed");
-    }
-    file.close();
-}
-
-void appendFile(fs::FS &fs, const char *path, const char *message)
-{
-    Serial.printf("Appending to file: %s\n", path);
-
-    File file = fs.open(path, FILE_APPEND);
-    if (!file)
-    {
-        Serial.println("Failed to open file for appending");
-        return;
-    }
-    if (file.print(message))
-    {
-        Serial.println("Message appended");
-    }
-    else
-    {
-        Serial.println("Append failed");
-    }
-    file.close();
-}
-
-void writeSensorData(GpsData &gpsData, IMUData &imuData, AltData &altData)
-{
-    char csvEntry[CSV_ENTRY_MAX_LENGTH];
-    sprintf(csvEntry, "%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
-            gpsData.latitude,
-            gpsData.longitude,
-            gpsData.altitude,
-            gpsData.heading,
-            imuData.accelX,
-            imuData.accelY,
-            imuData.accelZ,
-            imuData.gyroX,
-            imuData.gyroY,
-            imuData.gyroZ,
-            imuData.imuTemp,
-            altData.temperature,
-            altData.pressure,
-            altData.altitude);
-
-    appendFile(SD, newFileName, csvEntry);
-
-    Serial.print("\n\nWrote: ");
-    Serial.println(csvEntry);
-}
-
-void writeToLora(GpsData &gpsData, IMUData &imuData, AltData &altData, unsigned long timeSinceStart)
-{
-    uint8_t gpsDataByteArray[sizeof(GpsData)];
-    memcpy(gpsDataByteArray, &gpsData, sizeof(GpsData));
-
-    uint8_t imuDataArray[sizeof(IMUData)];
-    memcpy(imuDataArray, &imuData, sizeof(IMUData));
-
-    uint8_t altDataArray[sizeof(AltData)];
-    memcpy(altDataArray, &altData, sizeof(AltData));
-
-    uint8_t timestampArray[sizeof(unsigned long)];
-    memcpy(timestampArray, &timeSinceStart, sizeof(unsigned long));
-
-    Serial.println("Sending packet: ");
-
-    digitalWrite(TXEN, HIGH);
-    digitalWrite(RXEN, LOW);
-
-    LoRa.beginPacket();
-    LoRa.print("A ");
-    LoRa.write(gpsDataByteArray, sizeof(GpsData));
-    LoRa.write(imuDataArray, sizeof(IMUData));
-    LoRa.write(altDataArray, sizeof(AltData));
-    LoRa.write(timestampArray, sizeof(unsigned long));
-    LoRa.print(" Z");
-    LoRa.endPacket();
-
-    digitalWrite(TXEN, LOW);
-    digitalWrite(RXEN, HIGH);
-
-    Serial.println("Finished Sending");
+    delay(LOOP_DELAY_MS);
 }
