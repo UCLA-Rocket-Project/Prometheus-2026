@@ -644,7 +644,7 @@ void setup() {
 void loop() {
   Telemetry t = readTelemetry();
   printTelemetry(t);
-  // sendTelemetry(t);  // temporarily disabled to test SD isolation
+  sendTelemetry(t);  // temporarily disabled to test SD isolation
   logTelemetryToSD(t);
   delay(LOOP_DELAY_MS);
 }
