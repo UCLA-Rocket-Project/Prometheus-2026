@@ -70,7 +70,7 @@ void setup() {
   // --- Choose one action below, comment out the other ---
 
   // Read a specific file:
-  readFile(SD, "/log0.csv");
+  readFile(SD, "/log1.csv");
 
   // Delete all files:
   // deleteAllFiles(SD);
