@@ -180,6 +180,11 @@ void setup() {
         Serial.println("Could not start LoRa!");
     }
 
+    LoRa.setSpreadingFactor(7);
+    LoRa.setSignalBandwidth(250E3);
+    LoRa.setCodingRate4(5);
+    LoRa.enableCrc();    // Better packet validation
+
     Serial.println("LoRa set up!");
 
     pinMode(LORA_RX_EN, OUTPUT);
@@ -310,11 +315,34 @@ long getLongField(const String& msg, const char* key, bool& found) {
 }
 
 void loop() {
+    // Serial.println();
+    // delay(1000);
+    // Serial.println("===== RECEIVED PACKET =====");
+    // Serial.print("RSSI: ");
+    // Serial.println(LoRa.packetRssi());
+    // Serial.print("SNR: ");
+    // Serial.println(LoRa.packetSnr());
+
+    // int packetSize = LoRa.parsePacket();
+    // if (!packetSize) {
+    //     delay(10);
+    //     return;
+    // }
+
     int packetSize = LoRa.parsePacket();
+
     if (!packetSize) {
-        delay(10);
+        Serial.println("no packet");
+        delay(500);
         return;
     }
+
+    Serial.println();
+    Serial.println("===== RECEIVED PACKET =====");
+    Serial.print("RSSI: ");
+    Serial.println(LoRa.packetRssi());
+    Serial.print("SNR: ");
+    Serial.println(LoRa.packetSnr());
 
     String msg = "";
     while (LoRa.available()) {
