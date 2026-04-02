@@ -110,59 +110,58 @@
 #include <SPI.h>
 #include <SD.h>
 // DAQ perfboard
-#define LORA_MISO  35 // 38 //35 c
-#define LORA_MOSI  25 // 36 //25 c
-#define LORA_SCK   32 // 37 //32 c
-#define LORA_CS    33 // 13 //33 c
+#define LORA_MISO 35 // 38 //35 c
+#define LORA_MOSI 25 // 36 //25 c
+#define LORA_SCK 32  // 37 //32 c
+#define LORA_CS 33   // 13 //33 c
 
 // Control Pins
-#define LORA_D0    14 // 10 //14 c
-#define LORA_D1    11 //
-#define LORA_RST   27 // 35 //27 c
+#define LORA_D0 14    // 10 //14 c
+#define LORA_D1 11    //
+#define LORA_RST 27   // 35 //27 c
 #define LORA_TX_EN 17 // 5 //26 c
 #define LORA_RX_EN 5  // 6 //12 c
 
 /* Other settings */
-#define LORA_FREQ             915E6
+#define LORA_FREQ 910E6
 #define LORA_SPREADING_FACTOR 7
 #define LORA_SIGNAL_BANDWIDTH 250E3
 
 SPIClass spi_bus(VSPI);
 
+void setup()
+{
+    //     Serial.begin(115200);
+    //     delay(2000);
 
+    //     Serial.println("Initializing...");
 
-void setup() {
-//     Serial.begin(115200);
-//     delay(2000);
+    //     spi_bus.begin(LORA_SCK, LORA_MISO, LORA_MOSI, -1);
 
-//     Serial.println("Initializing...");
+    //     LoRa.setSPI(spi_bus);
+    //     LoRa.setPins(LORA_CS, LORA_RST, LORA_D0);
 
-//     spi_bus.begin(LORA_SCK, LORA_MISO, LORA_MOSI, -1);
+    //     int lora_init = LoRa.begin(LORA_FREQ);
+    //     configASSERT(lora_init != 0 && "LoRa cannot start up");
 
-//     LoRa.setSPI(spi_bus);
-//     LoRa.setPins(LORA_CS, LORA_RST, LORA_D0);
+    // #ifdef UPLINK_MODE
+    //     LoRa.setCodingRate4(8);
+    //     LoRa.setSignalBandwidth(62500);
+    //     LoRa.setSpreadingFactor(9);
+    //     LoRa.enableCrc();
+    // #elif LAUNCH_MODE
+    //     LoRa.setCodingRate4(6);
+    //     LoRa.setSignalBandwidth(125000);
+    //     LoRa.setSpreadingFactor(9);
+    // #endif
+    //     LoRa.setSyncWord(0x72);
 
-//     int lora_init = LoRa.begin(LORA_FREQ);
-//     configASSERT(lora_init != 0 && "LoRa cannot start up");
+    //     Serial.println("LoRa set up!");
 
-// #ifdef UPLINK_MODE
-//     LoRa.setCodingRate4(8);
-//     LoRa.setSignalBandwidth(62500);
-//     LoRa.setSpreadingFactor(9);
-//     LoRa.enableCrc();
-// #elif LAUNCH_MODE
-//     LoRa.setCodingRate4(6);
-//     LoRa.setSignalBandwidth(125000);
-//     LoRa.setSpreadingFactor(9);
-// #endif
-//     LoRa.setSyncWord(0x72);
-
-//     Serial.println("LoRa set up!");
-
-//     pinMode(LORA_RX_EN, OUTPUT);
-//     pinMode(LORA_TX_EN, OUTPUT);
-//     digitalWrite(LORA_RX_EN, HIGH);
-//     digitalWrite(LORA_TX_EN, LOW);
+    //     pinMode(LORA_RX_EN, OUTPUT);
+    //     pinMode(LORA_TX_EN, OUTPUT);
+    //     digitalWrite(LORA_RX_EN, HIGH);
+    //     digitalWrite(LORA_TX_EN, LOW);
     Serial.begin(115200);
     delay(1000);
 
@@ -177,14 +176,15 @@ void setup() {
 
     Serial.println("hi1");
 
-    if (!LoRa.begin(915E6)) {
+    if (!LoRa.begin(910E6))
+    {
         Serial.println("Could not start LoRa!");
     }
 
     LoRa.setSpreadingFactor(7);
     LoRa.setSignalBandwidth(250E3);
     LoRa.setCodingRate4(5);
-    LoRa.enableCrc();    // Better packet validation
+    LoRa.enableCrc(); // Better packet validation
 
     Serial.println("LoRa set up!");
 
@@ -194,7 +194,7 @@ void setup() {
     digitalWrite(LORA_RX_EN, HIGH);
     digitalWrite(LORA_TX_EN, LOW); // this can be maximally slow, since we want reliability here
 
-    //LoRa.setTxPower(17);
+    // LoRa.setTxPower(17);
 }
 
 // void loop() {
@@ -222,7 +222,6 @@ void setup() {
 //     Serial.println(msg);
 //     Serial.println("==========================");
 
-  
 // }
 
 // void loop() {
@@ -283,39 +282,45 @@ void setup() {
 //     Serial.println(galt_i / 1000.0, 2);
 // }
 
-float getFloatField(const String& msg, const char* key, bool& found) {
+float getFloatField(const String &msg, const char *key, bool &found)
+{
     String token = String(key) + "=";
     int pos = msg.indexOf(token);
-    if (pos < 0) {
-        found = false;
-        return NAN;
-    }
+    // if (pos < 0) {
+    //     found = false;
+    //     return 0;
+    // }
 
     int start = pos + token.length();
     int end = msg.indexOf(",", start);
-    if (end < 0) end = msg.length();
+    if (end < 0)
+        end = msg.length();
 
     found = true;
     return msg.substring(start, end).toFloat();
 }
 
-long getLongField(const String& msg, const char* key, bool& found) {
+long getLongField(const String &msg, const char *key, bool &found)
+{
     String token = String(key) + "=";
     int pos = msg.indexOf(token);
-    if (pos < 0) {
+    if (pos < 0)
+    {
         found = false;
         return 0;
     }
 
     int start = pos + token.length();
     int end = msg.indexOf(",", start);
-    if (end < 0) end = msg.length();
+    if (end < 0)
+        end = msg.length();
 
     found = true;
     return msg.substring(start, end).toInt();
 }
 
-void loop() {
+void loop()
+{
     // Serial.println();
     // delay(1000);
     // Serial.println("===== RECEIVED PACKET =====");
@@ -332,11 +337,13 @@ void loop() {
 
     int packetSize = LoRa.parsePacket();
 
-    if (!packetSize) {
-        Serial.println("no packet");
-        delay(500);
-        return;
-    }
+    // if (!packetSize) {
+    //     Serial.println("no packet");
+    //     delay(500);
+    //     return;
+    // }
+
+    delay(500);
 
     Serial.println();
     Serial.println("===== RECEIVED PACKET =====");
@@ -346,7 +353,8 @@ void loop() {
     Serial.println(LoRa.packetSnr());
 
     String msg = "";
-    while (LoRa.available()) {
+    while (LoRa.available())
+    {
         msg += (char)LoRa.read();
     }
     msg.trim();
@@ -358,10 +366,10 @@ void loop() {
     bool hasAx, hasAy, hasAz, hasGx, hasGy, hasGz;
     bool hasA1v, hasA1a, hasA2v, hasA2a;
 
-    long lat_i  = getLongField(msg, "lat", hasLat);
-    long lon_i  = getLongField(msg, "lon", hasLon);
+    long lat_i = getLongField(msg, "lat", hasLat);
+    long lon_i = getLongField(msg, "lon", hasLon);
     long galt_i = getLongField(msg, "galt", hasGalt);
-    int gfix    = (int)getLongField(msg, "gfix", hasGfix);
+    int gfix = (int)getLongField(msg, "gfix", hasGfix);
 
     float ax = getFloatField(msg, "ax", hasAx);
     float ay = getFloatField(msg, "ay", hasAy);
@@ -377,47 +385,54 @@ void loop() {
     int a2v = (int)getLongField(msg, "a2v", hasA2v);
     float a2a = getFloatField(msg, "a2a", hasA2a);
 
-    float baroAlt = NAN;
-    if (hasA1v && a1v && hasA1a && !isnan(a1a) && hasA2v && a2v && hasA2a && !isnan(a2a)) {
-        baroAlt = (a1a + a2a) / 2.0f;
-    } else if (hasA1v && a1v && hasA1a && !isnan(a1a)) {
-        baroAlt = a1a;
-    } else if (hasA2v && a2v && hasA2a && !isnan(a2a)) {
-        baroAlt = a2a;
-    }
+    float baroAlt = (a1a + a2a) / 2.0f;
+    // if (hasA1v && a1v && hasA1a && !isnan(a1a) && hasA2v && a2v && hasA2a && !isnan(a2a)) {
+    //     baroAlt = (a1a + a2a) / 2.0f;
+    // } else if (hasA1v && a1v && hasA1a && !isnan(a1a)) {
+    //     baroAlt = a1a;
+    // } else if (hasA2v && a2v && hasA2a && !isnan(a2a)) {
+    //     baroAlt = a2a;
+    // }
 
-    float lat = hasLat ? lat_i / 10000000.0f : NAN;
-    float lon = hasLon ? lon_i / 10000000.0f : NAN;
-    float gpsAlt = hasGalt ? galt_i / 1000.0f : NAN;
+    float lat = lat_i / 10000000.0f;
+    // hasLat ? lat_i / 10000000.0f : NAN;
+    float lon = lon_i / 10000000.0f;
+    // hasLon ? lon_i / 10000000.0f : NAN;
+    float gpsAlt = galt_i / 1000.0f;
+    // hasGalt ? galt_i / 1000.0f : NAN;
 
     Serial.print("baro_alt=");
-    if (isnan(baroAlt)) Serial.print("NA"); else Serial.print(baroAlt, 2);
+    Serial.print(baroAlt, 2);
 
     Serial.print(", ax=");
-    if (isnan(ax)) Serial.print("NA"); else Serial.print(ax, 3);
+    Serial.print(ax, 3);
+
     Serial.print(", ay=");
-    if (isnan(ay)) Serial.print("NA"); else Serial.print(ay, 3);
+    Serial.print(ay, 3);
+
     Serial.print(", az=");
-    if (isnan(az)) Serial.print("NA"); else Serial.print(az, 3);
+    Serial.print(az, 3);
 
     Serial.print(", gx=");
-    if (isnan(gx)) Serial.print("NA"); else Serial.print(gx, 3);
+    Serial.print(gx, 3);
+
     Serial.print(", gy=");
-    if (isnan(gy)) Serial.print("NA"); else Serial.print(gy, 3);
+    Serial.print(gy, 3);
+
     Serial.print(", gz=");
-    if (isnan(gz)) Serial.print("NA"); else Serial.print(gz, 3);
+    Serial.print(gz, 3);
 
     Serial.print(", lat=");
-    if (isnan(lat)) Serial.print("NA"); else Serial.print(lat, 6);
+    Serial.print(lat, 6);
 
     Serial.print(", lon=");
-    if (isnan(lon)) Serial.print("NA"); else Serial.print(lon, 6);
+    Serial.print(lon, 6);
 
     Serial.print(", gps_alt=");
-    if (isnan(gpsAlt)) Serial.print("NA"); else Serial.print(gpsAlt, 2);
+    Serial.print(gpsAlt, 2);
 
     Serial.print(", gps_fix=");
-    if (!hasGfix) Serial.println("NA"); else Serial.println(gfix);
+    Serial.println(gfix);
 }
 
 /**

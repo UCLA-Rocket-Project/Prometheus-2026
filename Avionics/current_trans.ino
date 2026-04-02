@@ -42,7 +42,7 @@
 #define ALT_CS1 39
 #define ALT_CS2 38
 
-#define SD_CS 8  // SD card CS pin
+#define SD_CS 8 // SD card CS pin
 
 // =======================
 // BUZZER INIT
@@ -59,15 +59,15 @@ int buzzerPin = 15;
 #define SEA_LEVEL_PRESSURE_HPA 1013.25f
 #define RADIO_PACKET_MAX 256
 
-static const float LORA_FREQ_MHZ = 915.0;
+static const float LORA_FREQ_MHZ = 910.0;
 static const int LORA_POWER = 20;
 
 // MS5607 commands
 static const uint8_t MS5607_CMD_RESET = 0x1E;
 static const uint8_t MS5607_CMD_ADC_READ = 0x00;
 static const uint8_t MS5607_CMD_PROM_READ_BASE = 0xA0;
-static const uint8_t MS5607_CMD_CONV_D1 = 0x48;  // OSR 4096
-static const uint8_t MS5607_CMD_CONV_D2 = 0x58;  // OSR 4096
+static const uint8_t MS5607_CMD_CONV_D1 = 0x48; // OSR 4096
+static const uint8_t MS5607_CMD_CONV_D2 = 0x58; // OSR 4096
 
 // ============================================================
 // GLOBALS
@@ -91,7 +91,8 @@ String logFilename;
 // ============================================================
 // DATA STRUCTS
 // ============================================================
-struct GpsData {
+struct GpsData
+{
   bool valid;
   int32_t lat;
   int32_t lon;
@@ -101,7 +102,8 @@ struct GpsData {
   uint8_t sats;
 };
 
-struct ImuData {
+struct ImuData
+{
   bool valid;
   float ax;
   float ay;
@@ -112,14 +114,16 @@ struct ImuData {
   float tempC;
 };
 
-struct AltData {
+struct AltData
+{
   bool valid;
   float pressure_mbar;
   float tempC;
   float altitude_m;
 };
 
-struct Telemetry {
+struct Telemetry
+{
   uint32_t ms;
   GpsData gps;
   ImuData imu;
@@ -130,13 +134,17 @@ struct Telemetry {
 // ============================================================
 // MS5607 DRIVER
 // ============================================================
-class MS5607 {
+class MS5607
+{
 public:
-  MS5607() : spi(nullptr), cs(-1), initialized(false) {
-    for (int i = 0; i < 8; i++) C[i] = 0;
+  MS5607() : spi(nullptr), cs(-1), initialized(false)
+  {
+    for (int i = 0; i < 8; i++)
+      C[i] = 0;
   }
 
-  bool begin(SPIClass *bus, int csPin) {
+  bool begin(SPIClass *bus, int csPin)
+  {
     spi = bus;
     cs = csPin;
 
@@ -146,11 +154,13 @@ public:
     reset();
     delay(10);
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
       C[i] = readPROM(i);
     }
 
-    if (C[1] == 0 || C[1] == 0xFFFF || C[2] == 0 || C[2] == 0xFFFF) {
+    if (C[1] == 0 || C[1] == 0xFFFF || C[2] == 0 || C[2] == 0xFFFF)
+    {
       initialized = false;
       return false;
     }
@@ -159,18 +169,21 @@ public:
     return true;
   }
 
-  bool read(AltData &out) {
+  bool read(AltData &out)
+  {
     out.valid = false;
     out.pressure_mbar = NAN;
     out.tempC = NAN;
     out.altitude_m = NAN;
 
-    if (!initialized) return false;
+    if (!initialized)
+      return false;
 
     uint32_t D1 = convertAndRead(MS5607_CMD_CONV_D1);
     uint32_t D2 = convertAndRead(MS5607_CMD_CONV_D2);
 
-    if (D1 == 0 || D2 == 0) {
+    if (D1 == 0 || D2 == 0)
+    {
       return false;
     }
 
@@ -183,12 +196,14 @@ public:
     int64_t OFF2 = 0;
     int64_t SENS2 = 0;
 
-    if (TEMP < 2000) {
+    if (TEMP < 2000)
+    {
       T2 = ((int64_t)dT * dT) >> 31;
       OFF2 = 5LL * (TEMP - 2000LL) * (TEMP - 2000LL) / 2LL;
       SENS2 = 5LL * (TEMP - 2000LL) * (TEMP - 2000LL) / 4LL;
 
-      if (TEMP < -1500) {
+      if (TEMP < -1500)
+      {
         OFF2 += 7LL * (TEMP + 1500LL) * (TEMP + 1500LL);
         SENS2 += 11LL * (TEMP + 1500LL) * (TEMP + 1500LL) / 2LL;
       }
@@ -203,9 +218,12 @@ public:
     out.tempC = TEMP / 100.0f;
     out.pressure_mbar = P / 100.0f;
 
-    if (out.pressure_mbar > 0.1f) {
+    if (out.pressure_mbar > 0.1f)
+    {
       out.altitude_m = 44330.0f * (1.0f - pow(out.pressure_mbar / SEA_LEVEL_PRESSURE_HPA, 0.19029495718f));
-    } else {
+    }
+    else
+    {
       out.altitude_m = NAN;
     }
 
@@ -219,23 +237,27 @@ private:
   bool initialized;
   uint16_t C[8];
 
-  void beginTx() {
+  void beginTx()
+  {
     spi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
     digitalWrite(cs, LOW);
   }
 
-  void endTx() {
+  void endTx()
+  {
     digitalWrite(cs, HIGH);
     spi->endTransaction();
   }
 
-  void reset() {
+  void reset()
+  {
     beginTx();
     spi->transfer(MS5607_CMD_RESET);
     endTx();
   }
 
-  uint16_t readPROM(uint8_t index) {
+  uint16_t readPROM(uint8_t index)
+  {
     uint8_t cmd = MS5607_CMD_PROM_READ_BASE + (index * 2);
     beginTx();
     spi->transfer(cmd);
@@ -245,7 +267,8 @@ private:
     return ((uint16_t)msb << 8) | lsb;
   }
 
-  uint32_t convertAndRead(uint8_t cmd) {
+  uint32_t convertAndRead(uint8_t cmd)
+  {
     beginTx();
     spi->transfer(cmd);
     endTx();
@@ -269,17 +292,19 @@ MS5607 altimeter2;
 // ============================================================
 // RADIO CONTROL
 // ============================================================
-#define LORA_CS   RADIO_CS
-#define LORA_RST  RST_RADIO
+#define LORA_CS RADIO_CS
+#define LORA_RST RST_RADIO
 #define LORA_DIO0 RADIO_DIO1
 
-void setTX() {
+void setTX()
+{
   digitalWrite(RXEN, LOW);
   digitalWrite(TXEN, HIGH);
   delayMicroseconds(100);
 }
 
-void setRX() {
+void setRX()
+{
   digitalWrite(TXEN, LOW);
   digitalWrite(RXEN, HIGH);
   delayMicroseconds(100);
@@ -288,11 +313,14 @@ void setRX() {
 // ============================================================
 // INIT
 // ============================================================
-bool initGPS() {
+bool initGPS()
+{
   gnssWire.begin(GPS_SDA, GPS_SCL);
 
-  for (int i = 0; i < 10; i++) {
-    if (gnss.begin(gnssWire, GNSS_ADDRESS)) {
+  for (int i = 0; i < 10; i++)
+  {
+    if (gnss.begin(gnssWire, GNSS_ADDRESS))
+    {
       gnss.setI2COutput(COM_TYPE_UBX);
       ledcWriteTone(buzzerPin, NOTE_C5);
       delay(1000);
@@ -313,11 +341,13 @@ bool initGPS() {
   return false;
 }
 
-bool initIMU() {
+bool initIMU()
+{
   pinMode(IMU_CS, OUTPUT);
   digitalWrite(IMU_CS, HIGH);
 
-  if (!imu.begin_SPI(IMU_CS, &spiB)) {
+  if (!imu.begin_SPI(IMU_CS, &spiB))
+  {
     ledcWriteTone(buzzerPin, NOTE_C4);
     delay(1000);
     Serial.println("[IMU] FAIL");
@@ -341,7 +371,8 @@ bool initIMU() {
   return true;
 }
 
-bool initAltimeters() {
+bool initAltimeters()
+{
   alt1Ready = altimeter1.begin(&spiB, ALT_CS1);
   alt2Ready = altimeter2.begin(&spiB, ALT_CS2);
 
@@ -353,7 +384,8 @@ bool initAltimeters() {
   return alt1Ready || alt2Ready;
 }
 
-bool initRadio() {
+bool initRadio()
+{
   pinMode(TXEN, OUTPUT);
   pinMode(RXEN, OUTPUT);
   setRX();
@@ -362,11 +394,12 @@ bool initRadio() {
   digitalWrite(LORA_RST, HIGH);
   delay(20);
 
-  Serial.println("Died here"); 
+  Serial.println("Died here");
   LoRa.setSPI(spiA);
   LoRa.setPins(LORA_CS, LORA_RST, LORA_DIO0);
 
-  if (!LoRa.begin(LORA_FREQ_MHZ * 1e6)) {
+  if (!LoRa.begin(LORA_FREQ_MHZ * 1e6))
+  {
     Serial.println("[LORA] FAIL");
     return false;
   }
@@ -374,18 +407,18 @@ bool initRadio() {
   LoRa.setSpreadingFactor(7);
   LoRa.setSignalBandwidth(250E3);
   LoRa.setCodingRate4(5);
-  LoRa.enableCrc();  
+  LoRa.enableCrc();
 
   LoRa.setTxPower(LORA_POWER);
   Serial.println("[LORA] OK");
   return true;
-
 }
 
 // ============================================================
 // READ FUNCTIONS
 // ============================================================
-void readGPS(GpsData &g) {
+void readGPS(GpsData &g)
+{
   g.valid = false;
   g.lat = 0;
   g.lon = 0;
@@ -394,8 +427,10 @@ void readGPS(GpsData &g) {
   g.fixType = 0;
   g.sats = 0;
 
-  if (!gpsReady) return;
-  if (!gnss.getPVT()) return;
+  if (!gpsReady)
+    return;
+  if (!gnss.getPVT())
+    return;
 
   g.lat = gnss.getLatitude();
   g.lon = gnss.getLongitude();
@@ -406,13 +441,15 @@ void readGPS(GpsData &g) {
   g.valid = true;
 }
 
-void readIMU(ImuData &i) {
+void readIMU(ImuData &i)
+{
   i.valid = false;
   i.ax = i.ay = i.az = NAN;
   i.gx = i.gy = i.gz = NAN;
   i.tempC = NAN;
 
-  if (!imuReady) return;
+  if (!imuReady)
+    return;
 
   sensors_event_t accel, gyro, temp;
   imu.getEvent(&accel, &gyro, &temp);
@@ -429,15 +466,19 @@ void readIMU(ImuData &i) {
   i.valid = true;
 }
 
-void readAltimeters(AltData &a1, AltData &a2) {
+void readAltimeters(AltData &a1, AltData &a2)
+{
   a1.valid = false;
   a2.valid = false;
 
-  if (alt1Ready) altimeter1.read(a1);
-  if (alt2Ready) altimeter2.read(a2);
+  if (alt1Ready)
+    altimeter1.read(a1);
+  if (alt2Ready)
+    altimeter2.read(a2);
 }
 
-Telemetry readTelemetry() {
+Telemetry readTelemetry()
+{
   Telemetry t;
   t.ms = millis();
 
@@ -451,7 +492,8 @@ Telemetry readTelemetry() {
 // ============================================================
 // PACKET BUILD / TX
 // ============================================================
-void printTelemetry(const Telemetry &t) {
+void printTelemetry(const Telemetry &t)
+{
   Serial.print("T=");
   Serial.print(t.ms);
 
@@ -484,39 +526,40 @@ void printTelemetry(const Telemetry &t) {
   Serial.println(t.alt2.altitude_m, 2);
 }
 
-void sendTelemetry(const Telemetry &t) {
-  if (!radioReady) return;
+void sendTelemetry(const Telemetry &t)
+{
+  if (!radioReady)
+    return;
 
   char packet[RADIO_PACKET_MAX];
 
   snprintf(
-    packet, sizeof(packet),
-    "A,ms=%lu,"
-    "gv=%d,lat=%ld,lon=%ld,galt=%ld,ghdg=%ld,gfix=%u,gsat=%u,"
-    "iv=%d,ax=%.3f,ay=%.3f,az=%.3f,gx=%.3f,gy=%.3f,gz=%.3f,it=%.2f,"
-    "a1v=%d,a1p=%.2f,a1t=%.2f,a1a=%.2f,"
-    "a2v=%d,a2p=%.2f,a2t=%.2f,a2a=%.2f,Z",
-    (unsigned long)t.ms,
-    t.gps.valid,
-    (long)t.gps.lat,
-    (long)t.gps.lon,
-    (long)t.gps.alt_mm,
-    (long)t.gps.heading,
-    (unsigned)t.gps.fixType,
-    (unsigned)t.gps.sats,
-    t.imu.valid,
-    t.imu.ax, t.imu.ay, t.imu.az,
-    t.imu.gx, t.imu.gy, t.imu.gz,
-    t.imu.tempC,
-    t.alt1.valid,
-    t.alt1.pressure_mbar,
-    t.alt1.tempC,
-    t.alt1.altitude_m,
-    t.alt2.valid,
-    t.alt2.pressure_mbar,
-    t.alt2.tempC,
-    t.alt2.altitude_m
-  );
+      packet, sizeof(packet),
+      "A,ms=%lu,"
+      "gv=%d,lat=%ld,lon=%ld,galt=%ld,ghdg=%ld,gfix=%u,gsat=%u,"
+      "iv=%d,ax=%.3f,ay=%.3f,az=%.3f,gx=%.3f,gy=%.3f,gz=%.3f,it=%.2f,"
+      "a1v=%d,a1p=%.2f,a1t=%.2f,a1a=%.2f,"
+      "a2v=%d,a2p=%.2f,a2t=%.2f,a2a=%.2f,Z",
+      (unsigned long)t.ms,
+      t.gps.valid,
+      (long)t.gps.lat,
+      (long)t.gps.lon,
+      (long)t.gps.alt_mm,
+      (long)t.gps.heading,
+      (unsigned)t.gps.fixType,
+      (unsigned)t.gps.sats,
+      t.imu.valid,
+      t.imu.ax, t.imu.ay, t.imu.az,
+      t.imu.gx, t.imu.gy, t.imu.gz,
+      t.imu.tempC,
+      t.alt1.valid,
+      t.alt1.pressure_mbar,
+      t.alt1.tempC,
+      t.alt1.altitude_m,
+      t.alt2.valid,
+      t.alt2.pressure_mbar,
+      t.alt2.tempC,
+      t.alt2.altitude_m);
 
   setTX();
 
@@ -530,10 +573,13 @@ void sendTelemetry(const Telemetry &t) {
 
   setRX();
 
-  if (state == 1) {
+  if (state == 1)
+  {
     Serial.print("[TX] ");
     Serial.println(packet);
-  } else {
+  }
+  else
+  {
     Serial.println("[TX FAIL]");
   }
 }
@@ -541,25 +587,29 @@ void sendTelemetry(const Telemetry &t) {
 // ============================================================
 // SD CARD LOGGING
 // ============================================================
-bool initSD() {
+bool initSD()
+{
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
   delay(10);
 
-  if (!SD.begin(SD_CS, spiA, 4000000)) {
+  if (!SD.begin(SD_CS, spiA, 4000000))
+  {
     Serial.println("[SD] FAIL");
     return false;
   }
 
   // Find a unique log file name each boot
   int n = 0;
-  do {
+  do
+  {
     logFilename = "/log" + String(n++) + ".csv";
   } while (SD.exists(logFilename.c_str()) && n < 1000);
 
   // Write CSV header
   File f = SD.open(logFilename.c_str(), FILE_WRITE);
-  if (!f) {
+  if (!f)
+  {
     Serial.println("[SD] Failed to create log file");
     return false;
   }
@@ -575,28 +625,30 @@ bool initSD() {
   return true;
 }
 
-void logTelemetryToSD(const Telemetry &t) {
-  if (!sdReady) return;
+void logTelemetryToSD(const Telemetry &t)
+{
+  if (!sdReady)
+    return;
 
   File f = SD.open(logFilename.c_str(), FILE_APPEND);
-  if (!f) return;
+  if (!f)
+    return;
 
   char row[256];
   snprintf(row, sizeof(row),
-    "%lu,%d,%ld,%ld,%ld,%ld,%u,%u,"
-    "%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,"
-    "%d,%.2f,%.2f,%.2f,"
-    "%d,%.2f,%.2f,%.2f",
-    (unsigned long)t.ms,
-    t.gps.valid,
-    (long)t.gps.lat, (long)t.gps.lon, (long)t.gps.alt_mm, (long)t.gps.heading,
-    (unsigned)t.gps.fixType, (unsigned)t.gps.sats,
-    t.imu.valid,
-    t.imu.ax, t.imu.ay, t.imu.az,
-    t.imu.gx, t.imu.gy, t.imu.gz, t.imu.tempC,
-    t.alt1.valid, t.alt1.pressure_mbar, t.alt1.tempC, t.alt1.altitude_m,
-    t.alt2.valid, t.alt2.pressure_mbar, t.alt2.tempC, t.alt2.altitude_m
-  );
+           "%lu,%d,%ld,%ld,%ld,%ld,%u,%u,"
+           "%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,"
+           "%d,%.2f,%.2f,%.2f,"
+           "%d,%.2f,%.2f,%.2f",
+           (unsigned long)t.ms,
+           t.gps.valid,
+           (long)t.gps.lat, (long)t.gps.lon, (long)t.gps.alt_mm, (long)t.gps.heading,
+           (unsigned)t.gps.fixType, (unsigned)t.gps.sats,
+           t.imu.valid,
+           t.imu.ax, t.imu.ay, t.imu.az,
+           t.imu.gx, t.imu.gy, t.imu.gz, t.imu.tempC,
+           t.alt1.valid, t.alt1.pressure_mbar, t.alt1.tempC, t.alt1.altitude_m,
+           t.alt2.valid, t.alt2.pressure_mbar, t.alt2.tempC, t.alt2.altitude_m);
 
   f.println(row);
   f.close();
@@ -605,7 +657,8 @@ void logTelemetryToSD(const Telemetry &t) {
 // ============================================================
 // SETUP / LOOP
 // ============================================================
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   delay(3000);
 
@@ -641,7 +694,8 @@ void setup() {
   Serial.println("AFTER SD");
 }
 
-void loop() {
+void loop()
+{
   Telemetry t = readTelemetry();
   printTelemetry(t);
   // sendTelemetry(t);  // temporarily disabled to test SD isolation
