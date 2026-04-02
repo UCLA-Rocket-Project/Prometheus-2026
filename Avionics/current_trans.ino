@@ -364,15 +364,17 @@ bool initRadio() {
     return false;
   }
 
-  LoRa.setSpreadingFactor(12);
-  LoRa.setSignalBandwidth(125E3);
+  LoRa.setSpreadingFactor(7);
+  LoRa.setSignalBandwidth(250E3);
   LoRa.setCodingRate4(5);
+  LoRa.enableCrc();  
 
   LoRa.setTxPower(LORA_POWER);
   Serial.println("[LORA] OK");
   return true;
+
 }
-g
+
 // ============================================================
 // READ FUNCTIONS
 // ============================================================
@@ -513,7 +515,7 @@ void sendTelemetry(const Telemetry &t) {
 
   LoRa.beginPacket();
   LoRa.print(packet);
-  int state = LoRa.endPacket(true);
+  int state = LoRa.endPacket();
 
   // while (LoRa.isTransmitting()) {
   //   delay(1);
