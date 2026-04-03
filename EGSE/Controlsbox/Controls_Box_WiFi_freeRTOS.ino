@@ -62,7 +62,7 @@ void setup_wifi() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {  //only reads info
-  if (length != 12) return;
+  if (length != 10) return;
   if (payload[0] != 'A' || payload[length - 1] != 'Z') return;
 
   CommandPacket cmd;
