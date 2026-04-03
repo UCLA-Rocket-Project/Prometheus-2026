@@ -63,6 +63,14 @@ void setup_wifi() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.println("\n=== MQTT MESSAGE RECEIVED ===");
+
+  Serial.print("Topic: ");
+  Serial.println(topic);
+
+  Serial.print("Length: ");
+  Serial.println(length);
+
   Serial.print("Raw payload: ");
   for (unsigned int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
@@ -80,6 +88,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
+  Serial.println("Packet format valid");
+
   CommandPacket cmd;
 
   cmd.abortValve = payload[1] == '1';
@@ -92,6 +102,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   cmd.armState   = payload[8] == '1';
 
   cmd.timestamp = millis();
+
+  if (commandQueue != NULL) {
+    xQueueOverwrite(commandQueue, &cmd);
+    Serial.println("Command pushed to queue");
+  } else {
+    Serial.println("Queue is NULL");
+  }
 
   last_msg_time = millis();
   comms_lost = false;
@@ -107,7 +124,7 @@ void connect_client() {
     Serial.println("Connected to MQTT broker");
   } else {
     Serial.print("MQTT failed, rc=");
-    Serial.println(client.state());  // 🔥 THIS IS KEY
+    Serial.println(client.state()); 
   }
 }
 
