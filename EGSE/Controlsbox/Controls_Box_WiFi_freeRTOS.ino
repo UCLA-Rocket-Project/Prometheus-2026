@@ -3,7 +3,6 @@
 
 #define RO_PIN 16
 #define DI_PIN 17
-#define outlet 2
 #define PIN_FILL 22
 #define PIN_DUMP 21
 #define PIN_VENT 19
@@ -63,40 +62,53 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {  //only reads info
-  if (length != 10) return;
-  if (payload[0] != 'A' || payload[length - 1] != 'Z') return;
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Raw payload: ");
+  for (unsigned int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  // Validation checks
+  if (length != 10) {
+    Serial.println("Invalid length");
+    return;
+  }
+
+  if (payload[0] != 'A' || payload[length - 1] != 'Z') {
+    Serial.println("Invalid start/end markers");
+    return;
+  }
 
   CommandPacket cmd;
 
   cmd.abortValve = payload[1] == '1';
-  cmd.qd = payload[2] == '1';
-  cmd.vent = payload[3] == '1';
-  cmd.ignite = payload[4] == '1';
-  cmd.fill = payload[5] == '1';
-  cmd.dump = payload[6] == '1';
-  cmd.mpv = payload[7] == '1';
-  cmd.armState = payload[8] == '1';
+  cmd.qd         = payload[2] == '1';
+  cmd.vent       = payload[3] == '1';
+  cmd.ignite     = payload[4] == '1';
+  cmd.fill       = payload[5] == '1';
+  cmd.dump       = payload[6] == '1';
+  cmd.mpv        = payload[7] == '1';
+  cmd.armState   = payload[8] == '1';
 
   cmd.timestamp = millis();
-
-  if (commandQueue != NULL)
-    xQueueOverwrite(commandQueue, &cmd);
 
   last_msg_time = millis();
   comms_lost = false;
 }
-
 void connect_client() {
   if (client.connected())
     return;
+
   String cid = "CONTROL_BOX-" + WiFi.macAddress();
+
   if (client.connect(cid.c_str())) {
     client.subscribe(SWITCHBOX_TOPIC);
     Serial.println("Connected to MQTT broker");
-
-  } else
-    Serial.println("Failed to reconnect to MQTT broker");
+  } else {
+    Serial.print("MQTT failed, rc=");
+    Serial.println(client.state());  // 🔥 THIS IS KEY
+  }
 }
 
 void safeShutdown(const char* reason) {
@@ -151,11 +163,10 @@ void timeoutTask(void* pvParameters) {  //timeout (obviously) TASK
 
 void mqttTask(void* pvParameters) {  //wifi handling TASK
   while (true) {
-    if (WiFi.status() != WL_CONNECTED) {
-      WiFi.begin(ssid, password);
-      vTaskDelay(pdMS_TO_TICKS(5));
-      continue;
-    }
+  if (WiFi.status() != WL_CONNECTED) {
+    vTaskDelay(pdMS_TO_TICKS(500));  // just wait
+    continue;
+  }
     if (!client.connected()) {
       if (millis() - last_mqtt_attempt > 2000) {
         connect_client();
@@ -170,7 +181,6 @@ void mqttTask(void* pvParameters) {  //wifi handling TASK
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("HII");  //hi
 
   pinMode(PIN_ABORT_SIREN, OUTPUT);
   pinMode(PIN_IGNITE, OUTPUT);
@@ -180,7 +190,7 @@ void setup() {
   pinMode(PIN_QD, OUTPUT);
   pinMode(PIN_MPV, OUTPUT);
   // pinMode(purge, OUTPUT);
-  pinMode(outlet, OUTPUT);
+  pinMode(PIN_OUTLET, OUTPUT);
   pinMode(PIN_ABORT_VALVE, OUTPUT);
 
   safeShutdown("INITIAL SAFE");  // start in safe mode
