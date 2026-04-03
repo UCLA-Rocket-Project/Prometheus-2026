@@ -126,7 +126,7 @@ void controlTask(void* pvParameters) {  //process callback info TASK
       digitalWrite(dump, cmd.dump ? LOW : HIGH);
       digitalWrite(vent, cmd.vent ? LOW : HIGH);
       digitalWrite(qd, cmd.qd ? LOW : HIGH);
-      if (!armState) { //allow ignite and mpv
+      if (!cmd.armState) { //allow ignite and mpv
         digitalWrite(mpv, cmd.mpv ? LOW : HIGH);
         digitalWrite(ignite, cmd.ignite ? LOW : HIGH);
       }
