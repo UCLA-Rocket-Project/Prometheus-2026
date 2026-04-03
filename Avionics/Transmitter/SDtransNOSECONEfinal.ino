@@ -346,9 +346,38 @@ bool initAltimeters() {
   alt2Ready = altimeter2.begin(&spiB, ALT_CS2);
 
   Serial.print("[ALT1] ");
-  Serial.println(alt1Ready ? "OK" : "FAIL");
+  if(alt1Ready){
+      ledcWriteTone(buzzerPin, NOTE_C5);
+      delay(1000);
+      Serial.println("OK");
+      ledcWriteTone(buzzerPin, 0);
+      delay(2000);
+  }
+  else{
+      ledcWriteTone(buzzerPin, NOTE_C4);
+      delay(1000);
+      Serial.println("FAIL");
+      ledcWriteTone(buzzerPin, 0);
+      delay(2000);
+  }
+  //Serial.println(alt1Ready ? "OK" : "FAIL");
+  
   Serial.print("[ALT2] ");
-  Serial.println(alt2Ready ? "OK" : "FAIL");
+  if(alt2Ready){
+      ledcWriteTone(buzzerPin, NOTE_C5);
+      delay(1000);
+      Serial.println("OK");
+      ledcWriteTone(buzzerPin, 0);
+      delay(2000);
+  }
+  else{
+      ledcWriteTone(buzzerPin, NOTE_C4);
+      delay(1000);
+      Serial.println("FAIL");
+      ledcWriteTone(buzzerPin, 0);
+      delay(2000);
+  }
+  //Serial.println(alt2Ready ? "OK" : "FAIL");
 
   return alt1Ready || alt2Ready;
 }
@@ -367,7 +396,11 @@ bool initRadio() {
   LoRa.setPins(LORA_CS, LORA_RST, LORA_DIO0);
 
   if (!LoRa.begin(LORA_FREQ_MHZ * 1e6)) {
+    ledcWriteTone(buzzerPin, NOTE_C4);
+    delay(1000);
     Serial.println("[LORA] FAIL");
+    ledcWriteTone(buzzerPin, 0);
+    delay(2000);
     return false;
   }
 
@@ -377,7 +410,11 @@ bool initRadio() {
   LoRa.enableCrc();  
 
   LoRa.setTxPower(LORA_POWER);
+  ledcWriteTone(buzzerPin, NOTE_C4);
+  delay(1000);
   Serial.println("[LORA] OK");
+  ledcWriteTone(buzzerPin, 0);
+  delay(2000);
   return true;
 
 }
