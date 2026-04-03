@@ -35,6 +35,7 @@ MQTT_TOPIC = "switchbox/commands"
 
 # ←←← SET THIS TO True ONLY WHEN YOU HAVE THE BROKER RUNNING ←←←
 MQTT_ENABLED = False
+#IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! - Change to True when using MQTT
 
 # Mapping from Synnax channel → position in the 10-byte packet
 MAP_SYN_TO_PACKET = {
