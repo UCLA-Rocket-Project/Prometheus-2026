@@ -42,7 +42,6 @@ String makeFile() {
 }
 
 
-
 void appendFile(fs::FS &fs, const char *path, const char *message) {
   File file = fs.open(path, FILE_APPEND);
   if (!file) {
@@ -127,7 +126,18 @@ void setup() {
   Serial.println("SD initialization done.");
 
   fileName = makeFile();
-  writeFile(SD, fileName.c_str(), "PT1,PT2,PT3,V1,V2,V3\n");
+  writeFile(SD, fileName.c_str(), "LC_RAW,VOLTAGE\n");
+  // Read back the header to confirm file was created
+  File f = SD.open(fileName);
+  if (f) {
+    Serial.print("File contents: ");
+    while (f.available()) {
+      Serial.write(f.read());
+    }
+    f.close();
+  } else {
+    Serial.println("Could not open file to verify!");
+  }
   Serial.print("Logging to: ");
   Serial.println(fileName);
 
@@ -174,21 +184,15 @@ bool waitDRDY(uint32_t timeout_us = 5000) {
 
 void loop() {
   if (waitDRDY()) {
-    long pt1 = adc.readDifferentialFaster(DIFF_0_1);
-    long pt2 = adc.readDifferentialFaster(DIFF_2_3);
-    long pt3 = adc.readDifferentialFaster(DIFF_4_5);
+    long lc = adc.readDifferentialFaster(DIFF_0_1);
 
     Serial.print("RAW: ");
-    Serial.print(pt1); Serial.print(" ");
-    Serial.print(pt2); Serial.print(" ");
-    Serial.println(pt3);
+    Serial.println(lc);
 
-    float v1 = calibrate(adc.convertToVoltage(pt1));
-    float v2 = calibrate(adc.convertToVoltage(pt2));
-    float v3 = calibrate(adc.convertToVoltage(pt3));
+    float voltage = calibrate(adc.convertToVoltage(lc));
 
-    String message = String(pt1) + "," + String(pt2) + "," + String(pt3) + ","
-                   + String(v1,6) + "," + String(v2,6) + "," + String(v3,6) + "\n";
+    String message = String(lc) + ","
+                     + String(voltage, 6) +  "\n";
 
     Serial.print(message);
     appendFile(SD, fileName.c_str(), message.c_str());
