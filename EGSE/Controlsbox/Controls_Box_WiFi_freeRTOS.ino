@@ -4,14 +4,15 @@
 #define RO_PIN 16
 #define DI_PIN 17
 #define outlet 2
-#define fill 22
-#define dump 21
-#define vent 19
-#define qd 18
-#define mpv 5
-#define ignite 4
-#define abortSiren 23
-#define abortValve 13
+#define PIN_FILL 22
+#define PIN_DUMP 21
+#define PIN_VENT 19
+#define PIN_QD 18
+#define PIN_MPV 5
+#define PIN_IGNITE 4
+#define PIN_ABORT_VALVE 13
+#define PIN_ABORT_SIREN 23
+#define PIN_OUTLET 2
 volatile unsigned long last_msg_time = 0;
 unsigned long last_mqtt_attempt = 0;
 const unsigned long COMMS_TIMEOUT = 10000;
@@ -104,13 +105,13 @@ void safeShutdown(const char* reason) {
 
   //LOW = on, HIGH = off (reason: switchbox wires mixed)
   //HARDWARE WILL SWITCH VENT AND DUMP, KEEP SAME AS REST
-  digitalWrite(ignite, HIGH);     //off
-  digitalWrite(fill, HIGH);       //off
-  digitalWrite(vent, HIGH);       //off
-  digitalWrite(dump, HIGH);       //off
-  digitalWrite(qd, HIGH);         //off
-  digitalWrite(mpv, HIGH);        // off
-  digitalWrite(abortValve, LOW);  //on
+  digitalWrite(PIN_IGNITE, HIGH);     //off
+  digitalWrite(PIN_FILL, HIGH);       //off
+  digitalWrite(PIN_VENT, HIGH);       //off
+  digitalWrite(PIN_DUMP, HIGH);       //off
+  digitalWrite(PIN_QD, HIGH);         //off
+  digitalWrite(PIN_MPV, HIGH);        // off
+  digitalWrite(PIN_ABORT_VALVE, LOW);  //on
 }
 
 void controlTask(void* pvParameters) {  //process callback info TASK
@@ -122,17 +123,17 @@ void controlTask(void* pvParameters) {  //process callback info TASK
         safeShutdown("ABORT COMMAND");
         continue;
       }
-      digitalWrite(fill, cmd.fill ? LOW : HIGH);
-      digitalWrite(dump, cmd.dump ? LOW : HIGH);
-      digitalWrite(vent, cmd.vent ? LOW : HIGH);
-      digitalWrite(qd, cmd.qd ? LOW : HIGH);
+      digitalWrite(PIN_FILL, cmd.fill ? LOW : HIGH);
+      digitalWrite(PIN_DUMP, cmd.dump ? LOW : HIGH);
+      digitalWrite(PIN_VENT, cmd.vent ? LOW : HIGH);
+      digitalWrite(PIN_QD, cmd.qd ? LOW : HIGH);
       if (!cmd.armState) { //allow ignite and mpv
-        digitalWrite(mpv, cmd.mpv ? LOW : HIGH);
-        digitalWrite(ignite, cmd.ignite ? LOW : HIGH);
+        digitalWrite(PIN_MPV, cmd.mpv ? LOW : HIGH);
+        digitalWrite(PIN_IGNITE, cmd.ignite ? LOW : HIGH);
       }
       else {
-        digitalWrite(mpv, HIGH);
-        digitalWrite(ignite, HIGH);
+        digitalWrite(PIN_MPV, HIGH);
+        digitalWrite(PIN_IGNITE, HIGH);
       }
     }
   }
@@ -171,16 +172,16 @@ void setup() {
   delay(1000);
   Serial.println("HII");  //hi
 
-  pinMode(abortSiren, OUTPUT);
-  pinMode(ignite, OUTPUT);
-  pinMode(fill, OUTPUT);
-  pinMode(vent, OUTPUT);
-  pinMode(dump, OUTPUT);
-  pinMode(qd, OUTPUT);
-  pinMode(mpv, OUTPUT);
+  pinMode(PIN_ABORT_SIREN, OUTPUT);
+  pinMode(PIN_IGNITE, OUTPUT);
+  pinMode(PIN_FILL, OUTPUT);
+  pinMode(PIN_VENT, OUTPUT);
+  pinMode(PIN_DUMP, OUTPUT);
+  pinMode(PIN_QD, OUTPUT);
+  pinMode(PIN_MPV, OUTPUT);
   // pinMode(purge, OUTPUT);
   pinMode(outlet, OUTPUT);
-  pinMode(abortValve, OUTPUT);
+  pinMode(PIN_ABORT_VALVE, OUTPUT);
 
   safeShutdown("INITIAL SAFE");  // start in safe mode
 
