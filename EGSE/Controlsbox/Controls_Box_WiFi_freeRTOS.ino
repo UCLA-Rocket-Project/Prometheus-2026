@@ -27,6 +27,7 @@ struct CommandPacket {
   bool fill;
   bool dump;
   bool mpv;
+  bool armState;
   uint32_t timestamp;
 };
 
@@ -74,6 +75,7 @@ void callback(char* topic, byte* payload, unsigned int length) {  //only reads i
   cmd.fill = payload[5] == '1';
   cmd.dump = payload[6] == '1';
   cmd.mpv = payload[7] == '1';
+  cmd.arm = payload[8] == '1';
 
   cmd.timestamp = millis();
 
@@ -120,13 +122,19 @@ void controlTask(void* pvParameters) {  //process callback info TASK
         safeShutdown("ABORT COMMAND");
         continue;
       }
-
+      bool armState = cmd.arm ? LOW : HIGH;
       digitalWrite(fill, cmd.fill ? LOW : HIGH);
       digitalWrite(dump, cmd.dump ? LOW : HIGH);
       digitalWrite(vent, cmd.vent ? LOW : HIGH);
       digitalWrite(qd, cmd.qd ? LOW : HIGH);
-      digitalWrite(ignite, cmd.ignite ? LOW : HIGH);
-      digitalWrite(mpv, cmd.mpv ? LOW : HIGH);
+      if (!armState) { //allow ignite and mpv
+        digitalWrite(mpv, cmd.mpv ? LOW : HIGH);
+        digitalWrite(ignite, cmd.ignite ? LOW : HIGH);
+      }
+      else {
+        digitalWrite(mpv, HIGH);
+        digitalWrite(ignite, HIGH);
+      }
     }
   }
 }
