@@ -14,7 +14,7 @@ OPEN = 1
 ############################################
 
 
-NUM_CHANNELS = 7
+NUM_CHANNELS = 8
 SAFE_STATES = [
     CLOSED,  #1 - Abort
     CLOSED,  #2 - QD
@@ -23,6 +23,7 @@ SAFE_STATES = [
     CLOSED,  #5 - Fill
     CLOSED,  #6 - Dump
     CLOSED,  #7 - MPV
+    CLOSED,  #8 - Purge
 ]
 
 
@@ -34,13 +35,11 @@ PROTECTED_CHANNELS = [4, 7]  # MPV, Ignite 1
 ############################################
 
 
-# ←←← CHANGE THIS IP WHEN YOUR BROKER IS RUNNING ←←←
 MQTT_BROKER = "192.168.0.100"
 MQTT_PORT = 1883
 MQTT_TOPIC = "switchbox/commands"
 
 
-# ←←← SET THIS TO True ONLY WHEN YOU HAVE THE BROKER RUNNING ←←←
 MQTT_ENABLED = True
 #IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! - Change to True when using MQTT
 
@@ -54,6 +53,7 @@ MAP_SYN_TO_PACKET = {
     5: 5,  # Fill
     6: 6,  # Dump
     7: 7,  # MPV
+    8: 8,  # Purge
 }
 
 
@@ -123,7 +123,7 @@ def build_packet(states):
             packet_list[packet_idx] = str(states[syn_ch - 1])
 
 
-    packet_list[8] = str(ARMED)
+    # packet_list[8] = str(ARMED)
 
 
     return "".join(packet_list)
@@ -138,19 +138,16 @@ def send_mqtt_command(states):
 
 
     if not MQTT_ENABLED:
-        # print("   → MQTT disabled for testing (no actual send)") # Muted to prevent spam at 7.5Hz
         return False
 
 
     global mqtt_client
     if mqtt_client is None or not mqtt_client.is_connected():
-        # print("   → MQTT not connected (no actual send)") # Muted to prevent spam at 7.5Hz
         return False
 
 
     try:
         mqtt_client.publish(MQTT_TOPIC, packet, qos=0)
-        # print("   → Sent successfully over MQTT") # Muted to prevent spam at 7.5Hz
         return True
     except Exception as e:
         print(f"   → Publish failed: {e}")
@@ -259,11 +256,11 @@ if __name__ == "__main__":
             try:
                 mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
                 mqtt_client.loop_start()
-                print(f"✅ Connected to MQTT broker at {MQTT_BROKER}")
+                print(f"Connected to MQTT broker at {MQTT_BROKER}")
                 connected = True
             except Exception as e:
-                print(f"⚠️ Connection failed: {e}")
-                print("   Retrying in 3 seconds... (Ctrl+C to quit)")
+                print(f"Connection failed: {e}")
+                print("Retrying... (Ctrl+C to quit)")
                 time.sleep(3)
 
 
