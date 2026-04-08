@@ -1,5 +1,3 @@
-//first attempt at implementing freeRTOS, should be decently optimized
-//potential improvements: add buffer to catch any hiccups, implement watchdog timer for any faults, send bytes instead of string (expensive)
 #include <Arduino.h>
 #include <ADS1256.h>
 #include "ADS8688.h"
@@ -39,10 +37,9 @@ unsigned long last_mqtt_attempt = 0;
 static unsigned long lastMqttLoop = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
-const unsigned long SAMPLE_INTERVAL = 1;   // 1 kHz
-const unsigned long PUBLISH_INTERVAL = 1; // 1 kHz
+const unsigned long SAMPLE_INTERVAL = 1;
+const unsigned long PUBLISH_INTERVAL = 2;
 
-// WiFi + MQTT credentials
 const char *ssid = "ILAY";
 const char *password = "lebronpookie123";
 const char *mqtt_server = "192.168.0.100";
@@ -51,16 +48,12 @@ const char *DAQ_TOPIC = "DAQ_transmitter/receiver";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// SPI bus shared between both ADCs
 SPIClass sharedSPI(FSPI);
-// ADS1256 instance
 ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
-// ADS8688 instance
 ADS8688 pressureADC;
-// Calibration coefficients for load cell
+
 float calibrationA1 = 0.256906;
 float calibrationB1 = -6.391059;
-// Convert voltage to weight
 float convertToWeightLC1(float voltage)
 {
   return (calibrationA1 * voltage) + calibrationB1;
@@ -71,6 +64,7 @@ float convertToWeightLC2(float voltage)
 {
   return (calibrationA2 * voltage) + calibrationB2;
 }
+
 void setup_wifi()
 {
   delay(10);
@@ -128,7 +122,7 @@ bool waitForDRDY(uint32_t timeout_us = 2000)
   {
     if (micros() - start > timeout_us)
     {
-      return false; // timed out, skip this sample
+      return false;
     }
   }
   return true;
@@ -139,11 +133,10 @@ void samplingTask(void *pvParameters)
   Serial.println("SAMPLING TASK");
   TickType_t lastWakeTime = xTaskGetTickCount();
 
-  float ptVoltages[8];
-  float ptCalibrated[8];
-
   while (true)
   {
+    float ptVoltages[8];
+    float ptCalibrated[8];
     float lcCalibrated0 = 0.0;
     float lcCalibrated1 = 0.0;
     bool validSample = false;
@@ -153,16 +146,22 @@ void samplingTask(void *pvParameters)
       pressureADC.readAllChannels(ADS8688_CS, true, ptVoltages);
       delayMicroseconds(5);
 
-      if (waitForDRDY())
-      {
-        float lcVoltage0 = loadCellADC.convertToVoltage(
-            loadCellADC.readDifferentialFaster(DIFF_0_1));
-        float lcVoltage1 = loadCellADC.convertToVoltage(
-            loadCellADC.readDifferentialFaster(DIFF_1_2));
+      bool drdy0 = waitForDRDY();
+      float lcVoltage0 = drdy0
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))
+        : 0.0f;
 
+      bool drdy1 = waitForDRDY();
+      float lcVoltage1 = drdy1
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))
+        : 0.0f;
+
+      validSample = drdy0 && drdy1;
+
+      if (validSample)
+      {
         lcCalibrated0 = convertToWeightLC1(lcVoltage0);
         lcCalibrated1 = convertToWeightLC2(lcVoltage1);
-        validSample = true;
       }
 
       xSemaphoreGive(spiMutex);
@@ -172,18 +171,12 @@ void samplingTask(void *pvParameters)
     {
       for (int i = 0; i < 8; i++)
       {
-        ptCalibrated[i] = getCalibratedValue(
-            mValues[i],
-            bValues[i],
-            ptVoltages[i]);
+        ptCalibrated[i] = getCalibratedValue(mValues[i], bValues[i], ptVoltages[i]);
       }
 
       SensorData newData;
-
       for (int i = 0; i < 8; i++)
-      {
         newData.pt[i] = ptCalibrated[i];
-      }
 
       newData.lc[0] = lcCalibrated0;
       newData.lc[1] = lcCalibrated1;
@@ -209,12 +202,13 @@ void publishTask(void *pvParameters)
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
     }
+
     if (xQueuePeek(sensorQueue, &localCopy, 0) == pdTRUE)
     {
       snprintf(
           finalStr,
           sizeof(finalStr),
-          "rocket_data pt0=%4.10f,pt1=%4.10f,pt2=%4.10f,pt3=%4.10f,pt4=%4.10f,pt5=%4.10f,pt6=%4.10f,pt7=%4.10f,lc0=%4.10f,lc1=%4.10f,uptime_ms=%lu",
+          "rocket_data pt0=%4.2f,pt1=%4.2f,pt2=%4.2f,pt3=%4.2f,pt4=%4.2f,pt5=%4.2f,pt6=%4.2f,pt7=%4.2f,lc0=%4.2f,lc1=%4.2f,uptime_ms=%lu",
           localCopy.pt[0],
           localCopy.pt[1],
           localCopy.pt[2],
@@ -255,7 +249,6 @@ void setup()
 {
   pinMode(DE_RE_PIN, OUTPUT);
   digitalWrite(DE_RE_PIN, HIGH);
-  // put your setup code here, to run once:
   Serial.begin(115200);
   while (!Serial)
     delay(10);
@@ -263,31 +256,26 @@ void setup()
   pinMode(LED, OUTPUT);
   digitalWrite(LED, HIGH);
 
-  // Create mutex for shared data
   sensorQueue = xQueueCreate(1, sizeof(SensorData));
   spiMutex = xSemaphoreCreateMutex();
 
-  // Start custom SPI bus
   sharedSPI.begin(ADS1256_SCLK, ADS1256_MISO, ADS1256_MOSI, -1);
-  // Initialize ADS1256 (Load Cell)
   if (xSemaphoreTake(spiMutex, portMAX_DELAY) == pdTRUE)
   {
     loadCellADC.InitializeADC();
     loadCellADC.setPGA(PGA_64);
-    // loadCellADC.setMUX(DIFF_0_1);
     loadCellADC.setDRATE(DRATE_1000SPS);
-    // Initialize ADS8688 (PTs)
     pressureADC.begin(ADS1256_MISO, ADS1256_SCLK, ADS1256_MOSI, ADS8688_CS, 4.1, 0x05);
     pressureADC.setInputRange(ADS8688_CS, 0x05);
     xSemaphoreGive(spiMutex);
   }
-  // // WiFi + MQTT setup
+
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setKeepAlive(60);
 
   xTaskCreatePinnedToCore(samplingTask, "Sampling Task", 4096, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(publishTask, "Publish Task", 4096, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(publishTask, "Publish Task", 6144, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(mqttTask, "MQTT Task", 4096, NULL, 1, NULL, 0);
 
   Serial.println("Setup complete");
