@@ -18,7 +18,7 @@ unsigned long last_mqtt_attempt = 0;
 const unsigned long COMMS_TIMEOUT = 10000;
 volatile bool comms_lost = false;
 
-q
+
 QueueHandle_t commandQueue;
 struct CommandPacket {
   bool abortValve;
@@ -160,6 +160,7 @@ void controlTask(void* pvParameters) {  //process callback info TASK
       digitalWrite(PIN_DUMP, cmd.dump ? LOW : HIGH);
       digitalWrite(PIN_VENT, cmd.vent ? LOW : HIGH);
       digitalWrite(PIN_QD, cmd.qd ? LOW : HIGH);
+      digitalWrite(PIN_PURGE, cmd.purge ? LOW : HIGH);
       if (!cmd.armState) { //allow ignite and mpv
         digitalWrite(PIN_MPV, cmd.mpv ? LOW : HIGH);
         digitalWrite(PIN_IGNITE, cmd.ignite ? LOW : HIGH);
@@ -210,7 +211,7 @@ void setup() {
   pinMode(PIN_DUMP, OUTPUT);
   pinMode(PIN_QD, OUTPUT);
   pinMode(PIN_MPV, OUTPUT);
-  // pinMode(purge, OUTPUT);
+  pinMode(PIN_PURGE, OUTPUT);
   pinMode(PIN_OUTLET, OUTPUT);
   pinMode(PIN_ABORT_VALVE, OUTPUT);
 
