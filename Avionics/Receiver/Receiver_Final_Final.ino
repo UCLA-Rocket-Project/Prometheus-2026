@@ -47,7 +47,7 @@ struct Telemetry {
   unsigned int sats;
 
   int imuValid;
-  float ax;
+  float ax; //accel
   float ay;
   float az;
   float gx;
@@ -55,6 +55,7 @@ struct Telemetry {
   float gz;
   float imuTempC;
 
+//altitude sensors
   int alt1Valid;
   float alt1Pressure;
   float alt1TempC;
@@ -127,7 +128,7 @@ bool parseTelemetryPacket(char *packet, Telemetry &t) {
 }
 
 // ============================================================
-// PRINT PARSED TELEMETRY (nosecone_data format)
+// PRINT PARSED TELEMETRY
 // ============================================================
 void printTelemetry(const Telemetry &t, int rssi, float snr) {
   Serial.print("RSSI: ");
@@ -211,11 +212,9 @@ void loop() {
   }
   packet[index] = '\0';
 
-  // Grab RSSI and SNR before parsing
   int rssi = LoRa.packetRssi();
   float snr = LoRa.packetSnr();
 
-  // Make a copy because strtok modifies the buffer
   char parseBuffer[RX_PACKET_MAX];
   strncpy(parseBuffer, packet, RX_PACKET_MAX);
   parseBuffer[RX_PACKET_MAX - 1] = '\0';
