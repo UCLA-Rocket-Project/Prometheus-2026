@@ -112,9 +112,9 @@ mqtt_client = None
 
 
 def build_packet(states):
-    packet_list = ['0'] * 10
+    packet_list = ['0'] * 11
     packet_list[0] = 'A'
-    packet_list[9] = 'Z'
+    packet_list[10] = 'Z'
     packet_list[1] = '0'          # abortValve always safe for now
 
 
@@ -123,7 +123,7 @@ def build_packet(states):
             packet_list[packet_idx] = str(states[syn_ch - 1])
 
 
-    # packet_list[8] = str(ARMED)
+    packet_list[9] = str(ARMED)
 
 
     return "".join(packet_list)
@@ -207,8 +207,10 @@ def main():
                         commands[6] = SAFE_STATES[6]
 
 
-                    # IGNITE requires BOTH ARMED and MPV open
-                    if not ARMED or commands[6] != OPEN:
+                    # IGNITE requires ARMED(and used to need MPV open)
+                    # if not ARMED or commands[6] != OPEN:
+                    #     commands[3] = SAFE_STATES[3]
+                    if not ARMED:
                         commands[3] = SAFE_STATES[3]
 
 
