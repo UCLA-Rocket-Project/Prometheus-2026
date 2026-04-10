@@ -80,7 +80,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 
   // Validation checks
-  if (length != 11) {
+  if (length != 10) {
     Serial.println("Invalid length");
     return;
   }
