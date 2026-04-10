@@ -112,6 +112,7 @@ void loop() {
     message += String(digitalRead(fill));
     message += String(digitalRead(dump));
     message += String(digitalRead(mpv));
+    message += '0'; //purge
     message += 'Z';
 
         /*
