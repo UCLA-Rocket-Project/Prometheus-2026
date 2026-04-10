@@ -12,12 +12,13 @@
 #define PIN_ABORT_VALVE 13
 #define PIN_ABORT_SIREN 23
 #define PIN_OUTLET 2
+#define PIN_PURGE 15
 volatile unsigned long last_msg_time = 0;
 unsigned long last_mqtt_attempt = 0;
 const unsigned long COMMS_TIMEOUT = 10000;
 volatile bool comms_lost = false;
 
-
+q
 QueueHandle_t commandQueue;
 struct CommandPacket {
   bool abortValve;
@@ -27,6 +28,7 @@ struct CommandPacket {
   bool fill;
   bool dump;
   bool mpv;
+  bool purge;
   bool armState;
   uint32_t timestamp;
 };
@@ -78,7 +80,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 
   // Validation checks
-  if (length != 10) {
+  if (length != 11) {
     Serial.println("Invalid length");
     return;
   }
@@ -99,7 +101,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
   cmd.fill       = payload[5] == '1';
   cmd.dump       = payload[6] == '1';
   cmd.mpv        = payload[7] == '1';
-  cmd.armState   = payload[8] == '1';
+  cmd.purge      = payload[8] == '1';
+  cmd.armState   = payload[9] == '1';
 
   cmd.timestamp = millis();
 
@@ -140,6 +143,7 @@ void safeShutdown(const char* reason) {
   digitalWrite(PIN_DUMP, HIGH);       //off
   digitalWrite(PIN_QD, HIGH);         //off
   digitalWrite(PIN_MPV, HIGH);        // off
+  digitalWrite(PIN_PURGE, HIGH);
   digitalWrite(PIN_ABORT_VALVE, LOW);  //on
 }
 
