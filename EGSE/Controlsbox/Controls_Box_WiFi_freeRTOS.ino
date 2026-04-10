@@ -80,7 +80,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 
   // Validation checks
-  if (length != 10) {
+  if (length != 11) {
     Serial.println("Invalid length");
     return;
   }
@@ -161,7 +161,7 @@ void controlTask(void* pvParameters) {  //process callback info TASK
       digitalWrite(PIN_VENT, cmd.vent ? LOW : HIGH);
       digitalWrite(PIN_QD, cmd.qd ? LOW : HIGH);
       digitalWrite(PIN_PURGE, cmd.purge ? LOW : HIGH);
-      if (!cmd.armState) { //allow ignite and mpv
+      if (cmd.armState) { //allow ignite and mpv
         digitalWrite(PIN_MPV, cmd.mpv ? LOW : HIGH);
         digitalWrite(PIN_IGNITE, cmd.ignite ? LOW : HIGH);
       }
