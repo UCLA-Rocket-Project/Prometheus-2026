@@ -52,17 +52,17 @@ SPIClass sharedSPI(FSPI);
 ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
 ADS8688 pressureADC;
 
-float calibrationA1 = 0.260906;
-float calibrationB1 = -6.138861;
+float calibrationA1 = -0.260906;
+float calibrationB1 = -6.138861+45;
 float convertToWeightLC1(float voltage)
 {
-  return (calibrationA1 * voltage) + calibrationB1;
+  return (voltage-calibrationB1)/calibrationA1;
 }
-float calibrationA2 = 1.722651;
+float calibrationA2 = -1.722651;
 float calibrationB2 = 11.209444;
 float convertToWeightLC2(float voltage)
 {
-  return (calibrationA2 * voltage) + calibrationB2;
+  return (voltage-calibrationB2)/calibrationA2;
 }
 
 void setup_wifi()
@@ -148,12 +148,12 @@ void samplingTask(void *pvParameters)
 
       bool drdy0 = waitForDRDY();
       float lcVoltage0 = drdy0
-        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))*10000.0f
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))*100000.0f
         : 0.0f;
 
       bool drdy1 = waitForDRDY();
       float lcVoltage1 = drdy1
-        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))*10000.0f
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))*100000.0f
         : 0.0f;
 
       validSample = drdy0 && drdy1;
@@ -208,7 +208,7 @@ void publishTask(void *pvParameters)
       snprintf(
           finalStr,
           sizeof(finalStr),
-          "rocket_data pt0=%4.2f,pt1=%4.2f,pt2=%4.2f,pt3=%4.2f,pt4=%4.2f,pt5=%4.2f,pt6=%4.2f,pt7=%4.2f,lc0=%4.2f,lc1=%4.2f,uptime_ms=%lu",
+          "rocket_data pt0=%4.2f,pt1=%4.2f,pt2=%4.2f,pt3=%4.2f,pt4=%4.2f,pt5=%4.2f,pt6=%4.2f,pt7=%4.2f,lc0=%4.10f,lc1=%4.10f,uptime_ms=%lu",
           localCopy.pt[0],
           localCopy.pt[1],
           localCopy.pt[2],
