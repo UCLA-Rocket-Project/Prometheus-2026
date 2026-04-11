@@ -53,12 +53,14 @@ ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
 ADS8688 pressureADC;
 
 float calibrationA1 = 0.256906;
+calibrationA1 = calibrationA1*-100000;
 float calibrationB1 = -6.391059;
 float convertToWeightLC1(float voltage)
 {
   return (calibrationA1 * voltage) + calibrationB1;
 }
 float calibrationA2 = 1.722651;
+calibrationA2 = calibrationA2*-100000;
 float calibrationB2 = 11.209444;
 float convertToWeightLC2(float voltage)
 {
