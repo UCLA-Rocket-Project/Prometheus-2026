@@ -54,15 +54,17 @@ ADS8688 pressureADC;
 
 float calibrationA1 = -0.260906;
 float calibrationB1 = -6.138861;
+int hardCodeConstant1 = 45; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
 float convertToWeightLC1(float voltage)
 {
-  return (voltage-calibrationB1)/calibrationA1+45;
+  return (voltage-calibrationB1)/calibrationA1 + hardCodeConstant1;
 }
 float calibrationA2 = -1.722651;
 float calibrationB2 = 11.209444;
+int hardCodeConstant2 = -11; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
 float convertToWeightLC2(float voltage)
 {
-  return (voltage-calibrationB2)/calibrationA2;
+  return (voltage-calibrationB2)/calibrationA2 + hardCodeConstant2;
 }
 
 void setup_wifi()
