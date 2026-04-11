@@ -38,7 +38,7 @@ static unsigned long lastMqttLoop = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
 const unsigned long SAMPLE_INTERVAL = 1;
-const unsigned long PUBLISH_INTERVAL = 2;
+const unsigned long PUBLISH_INTERVAL = 10;
 
 const char *ssid = "ILAY";
 const char *password = "lebronpookie123";
@@ -52,13 +52,13 @@ SPIClass sharedSPI(FSPI);
 ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
 ADS8688 pressureADC;
 
-float calibrationA1 = 0.260906  * -10000; //don't delete this mult
+float calibrationA1 = 0.260906;
 float calibrationB1 = -6.138861;
 float convertToWeightLC1(float voltage)
 {
   return (calibrationA1 * voltage) + calibrationB1;
 }
-float calibrationA2 = 1.722651 * -10000; //don't delete this mult
+float calibrationA2 = 1.722651;
 float calibrationB2 = 11.209444;
 float convertToWeightLC2(float voltage)
 {
@@ -148,12 +148,12 @@ void samplingTask(void *pvParameters)
 
       bool drdy0 = waitForDRDY();
       float lcVoltage0 = drdy0
-        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))*10000.0f
         : 0.0f;
 
       bool drdy1 = waitForDRDY();
       float lcVoltage1 = drdy1
-        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))*10000.0f
         : 0.0f;
 
       validSample = drdy0 && drdy1;
