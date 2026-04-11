@@ -38,7 +38,7 @@ static unsigned long lastMqttLoop = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
 const unsigned long SAMPLE_INTERVAL = 1;
-const unsigned long PUBLISH_INTERVAL = 10;
+const unsigned long PUBLISH_INTERVAL = 4;
 
 const char *ssid = "ILAY";
 const char *password = "lebronpookie123";
@@ -52,16 +52,18 @@ SPIClass sharedSPI(FSPI);
 ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
 ADS8688 pressureADC;
 
-float calibrationA1 = -0.260906;
-float calibrationB1 = -6.138861;
-int hardCodeConstant1 = 45; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
+
+float calibrationA1 = -1.722651;
+float calibrationB1 = 11.209444;
+float calibrationA2 = -0.260906;
+float calibrationB2 = -6.138861;
+int hardCodeConstant1 = 20; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
 float convertToWeightLC1(float voltage)
 {
   return (voltage-calibrationB1)/calibrationA1 + hardCodeConstant1;
 }
-float calibrationA2 = -1.722651;
-float calibrationB2 = 11.209444;
-int hardCodeConstant2 = -11; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
+
+int hardCodeConstant2 = 52; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
 float convertToWeightLC2(float voltage)
 {
   return (voltage-calibrationB2)/calibrationA2 + hardCodeConstant2;
