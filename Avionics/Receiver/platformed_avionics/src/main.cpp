@@ -30,7 +30,7 @@
 #define RX_PACKET_MAX 256
 #define EXPECTED_FIELDS 25
 
-SPIClass spi_bus;
+SPIClass spi_bus; //used to be spi_bus(VSPI)
 
 // ============================================================
 // TELEMETRY STRUCT
