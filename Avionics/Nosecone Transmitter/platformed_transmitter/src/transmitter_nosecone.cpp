@@ -306,20 +306,20 @@ bool initGPS() {
   for (int i = 0; i < 10; i++) {
     if (gnss.begin(gnssWire, GNSS_ADDRESS)) {
       gnss.setI2COutput(COM_TYPE_UBX);
-      ledcWriteTone(buzzerPin, NOTE_C5);
+      ledcWriteTone(buzzerChannel, NOTE_C5); //used to be buzzerPin
       delay(1000);
       Serial.println("[GPS] OK");
-      ledcWriteTone(buzzerPin, 0);
+      ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
       delay(2000);
       return true;
     }
     delay(300);
   }
 
-  ledcWriteTone(buzzerPin, NOTE_C4);
+  ledcWriteTone(buzzerChannel, NOTE_C4); //used to be buzzerPin
   delay(1000);
   Serial.println("[GPS] FAIL");
-  ledcWriteTone(buzzerPin, 0);
+  ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
   delay(2000);
 
   return false;
@@ -330,10 +330,10 @@ bool initIMU() {
   digitalWrite(IMU_CS, HIGH);
 
   if (!imu.begin_SPI(IMU_CS, &spiB)) {
-    ledcWriteTone(buzzerPin, NOTE_C4);
+    ledcWriteTone(buzzerChannel, NOTE_C4); //used to be buzzerPin
     delay(1000);
     Serial.println("[IMU] FAIL");
-    ledcWriteTone(buzzerPin, 0);
+    ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
     delay(2000);
     return false;
   }
@@ -343,12 +343,12 @@ bool initIMU() {
   imu.setAccelDataRate(LSM6DS_RATE_104_HZ);
   imu.setGyroDataRate(LSM6DS_RATE_104_HZ);
 
-  ledcWriteTone(buzzerPin, NOTE_C5);
+  ledcWriteTone(buzzerChannel, NOTE_C5); //used to be buzzerPin
   delay(1000);
-  ledcWriteTone(buzzerPin, NOTE_C5);
+  ledcWriteTone(buzzerChannel, NOTE_C5); //used to be buzzerPin
   Serial.println("[IMU] OK");
   delay(1000);
-  ledcWriteTone(buzzerPin, 0);
+  ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
 
   return true;
 }
@@ -490,7 +490,7 @@ void printTelemetry(const Telemetry &t) {
   Serial.print(" ALT2[");
   Serial.print(t.alt2.valid);
   Serial.print("] ");
-  Serial.println(t.alt2.altitude_m + ALTITUDE_OFFSET, 2); //debug check
+  Serial.println(t.alt2.altitude_m, 2); //debug check and removed +ALTITUDE_OFFSET for ALT2
 }
 
 // ============================================================
@@ -523,7 +523,7 @@ void sendTelemetry(const Telemetry &t) {
     t.alt2.valid,
     t.alt2.pressure_mbar,
     t.alt2.tempC,
-    t.alt2.altitude_m + ALTITUDE_OFFSET
+    t.alt2.altitude_m //+ ALTITUDE_OFFSET
   );
 
   if (len <= 0) {
@@ -626,7 +626,7 @@ void logTelemetryToSD(const Telemetry &t) {
     t.alt2.valid,
     t.alt2.pressure_mbar,
     t.alt2.tempC,
-    t.alt2.altitude_m + ALTITUDE_OFFSET
+    t.alt2.altitude_m //+ ALTITUDE_OFFSET
   );
 
   if (len <= 0) {
@@ -654,6 +654,9 @@ void logTelemetryToSD(const Telemetry &t) {
 void setup() {
   Serial.begin(115200);
   delay(3000);
+
+  ledcSetup(buzzerChannel, 2000, 8); //conforming to older style version > ledcAttach (<---- that's newer style api for buzzer)
+  ledcAttachPin(buzzerPin, buzzerChannel);
 
   Serial.println("BOOT 1");
 
@@ -686,12 +689,10 @@ void setup() {
   sdReady = initSD();
   Serial.println("AFTER SD");
 
-  ledcSetup(buzzerChannel, 2000, 8); //conforming to older style version > ledcAttach (<---- that's newer style api for buzzer)
-  ledcAttachPin(buzzerPin, buzzerChannel);
   //ledcAttach(buzzerPin, 2000, 8);
 
 
-  if (!gpsReady || !imuReady || !alt1Ready || !alt2Ready || !radioReady || !sdReady) {
+  if (!gpsReady || !imuReady || (!alt1Ready && !alt2Ready) || !radioReady || !sdReady) {
     Serial.println("[INIT] One or more subsystems failed -- buzzer ON");
     ledcWriteTone(buzzerChannel, NOTE_C4); //replaced buzzerPin with buzzerChannel
     delay(5000);
