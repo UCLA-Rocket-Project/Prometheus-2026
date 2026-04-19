@@ -14,6 +14,12 @@ try:
 except ImportError:
     serial = None
 
+try:
+    from influxdb_client import InfluxDBClient, Point
+    from influxdb_client.client.write_api import SYNCHRONOUS
+except ImportError:
+    InfluxDBClient = None
+
 
 def _env_str(name: str, default: str) -> str:
     return os.getenv(name, default)
@@ -60,6 +66,12 @@ DAQ_PARSE_DELIMITER = _env_str("DAQ_PARSE_DELIMITER", ",")
 DAQ_PT_CHANNEL_COUNT = 8
 DAQ_LC_CHANNEL_COUNT = 2
 DAQ_LOOP_HZ = _env_float("DAQ_LOOP_HZ", 200.0)
+
+INFLUXDB_ENABLED = _env_bool("INFLUXDB_ENABLED", False)
+INFLUXDB_URL = _env_str("INFLUXDB_URL", "http://localhost:8086")
+INFLUXDB_TOKEN = _env_str("INFLUXDB_TOKEN", "")
+INFLUXDB_ORG = _env_str("INFLUXDB_ORG", "rocket")
+INFLUXDB_BUCKET = _env_str("INFLUXDB_BUCKET", "daq")
 
 
 def _create_channels(client: sy.Synnax) -> None:
@@ -178,7 +190,21 @@ def _write_sample_to_synnax(writer, parsed: Dict[str, float]) -> None:
     writer.write(frame)
 
 
-def _run_mqtt_source(writer, stop_flag=None) -> None:
+def _write_sample_to_influxdb(write_api, parsed: Dict[str, float]) -> None:
+    """Write one parsed sample to InfluxDB as a rocket_data point."""
+    point = Point("rocket_data")
+    for i in range(DAQ_PT_CHANNEL_COUNT):
+        point = point.field(f"pt{i}", float(parsed[f"pt{i}"]))
+    point = point.field("lc0", float(parsed["lc0"]))
+    point = point.field("lc1", float(parsed["lc1"]))
+    point = point.field("uptime_ms", int(parsed["uptime_ms"]))
+    try:
+        write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
+    except Exception as err:
+        print(f"InfluxDB write failed: {err}")
+
+
+def _run_mqtt_source(writer, influx_write_api=None, stop_flag=None) -> None:
     """Read DAQ samples from MQTT and forward latest sample to Synnax."""
     latest_sample = {"value": None}
 
@@ -219,12 +245,14 @@ def _run_mqtt_source(writer, stop_flag=None) -> None:
             if sample is None:
                 continue
             _write_sample_to_synnax(writer, sample)
+            if influx_write_api is not None:
+                _write_sample_to_influxdb(influx_write_api, sample)
     finally:
         mqtt_client.loop_stop()
         mqtt_client.disconnect()
 
 
-def _run_serial_source(writer, stop_flag=None) -> None:
+def _run_serial_source(writer, influx_write_api=None, stop_flag=None) -> None:
     """Read DAQ samples from serial and write them to Synnax."""
     if serial is None:
         raise RuntimeError("pyserial is not installed. Install with: pip install pyserial")
@@ -258,6 +286,8 @@ def _run_serial_source(writer, stop_flag=None) -> None:
             if parsed is None:
                 continue
             _write_sample_to_synnax(writer, parsed)
+            if influx_write_api is not None:
+                _write_sample_to_influxdb(influx_write_api, parsed)
     finally:
         if serial_conn is not None and serial_conn.is_open:
             serial_conn.close()
@@ -280,18 +310,35 @@ def run_daq_node(stop_flag=None) -> None:
         print(f"MQTT: {MQTT_BROKER}:{MQTT_PORT} topic={MQTT_TOPIC}")
     else:
         print(f"Serial: {DAQ_SERIAL_PORT} @ {DAQ_BAUDRATE}")
+    if INFLUXDB_ENABLED:
+        print(f"InfluxDB: {INFLUXDB_URL}  org={INFLUXDB_ORG}  bucket={INFLUXDB_BUCKET}")
     print("=" * 70)
-    with client.open_writer(
-        start=sy.TimeStamp.now(),
-        channels=_build_writer_channels(),
-        enable_auto_commit=True,
-    ) as writer:
-        if DAQ_SOURCE_MODE == "mqtt":
-            _run_mqtt_source(writer, stop_flag=stop_flag)
-        elif DAQ_SOURCE_MODE == "serial":
-            _run_serial_source(writer, stop_flag=stop_flag)
-        else:
-            raise ValueError("DAQ_SOURCE_MODE must be one of: mqtt, serial")
+
+    influx_write_api = None
+    influx_client = None
+    if INFLUXDB_ENABLED:
+        if InfluxDBClient is None:
+            raise RuntimeError("influxdb-client is not installed. Install with: pip install 'influxdb-client'")
+        influx_client = InfluxDBClient(url=INFLUXDB_URL, token=INFLUXDB_TOKEN, org=INFLUXDB_ORG)
+        influx_write_api = influx_client.write_api(write_options=SYNCHRONOUS)
+
+    try:
+        with client.open_writer(
+            start=sy.TimeStamp.now(),
+            channels=_build_writer_channels(),
+            enable_auto_commit=True,
+        ) as writer:
+            if DAQ_SOURCE_MODE == "mqtt":
+                _run_mqtt_source(writer, influx_write_api=influx_write_api, stop_flag=stop_flag)
+            elif DAQ_SOURCE_MODE == "serial":
+                _run_serial_source(writer, influx_write_api=influx_write_api, stop_flag=stop_flag)
+            else:
+                raise ValueError("DAQ_SOURCE_MODE must be one of: mqtt, serial")
+    finally:
+        if influx_write_api is not None:
+            influx_write_api.close()
+        if influx_client is not None:
+            influx_client.close()
 
 
 def main() -> None:
