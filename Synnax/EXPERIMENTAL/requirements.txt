@@ -1,3 +1,4 @@
 synnax
 paho-mqtt
 pyserial
+influxdb-client
