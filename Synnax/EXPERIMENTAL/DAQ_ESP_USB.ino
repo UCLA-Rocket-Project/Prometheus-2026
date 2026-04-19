@@ -34,32 +34,61 @@ SemaphoreHandle_t spiMutex;
 const unsigned long SAMPLE_INTERVAL = 1;
 const unsigned long PUBLISH_INTERVAL = 4;
 
+const int PT_CHANNEL_COUNT = 8;
+const int LC_CHANNEL_COUNT = 2;
+
 SPIClass sharedSPI(FSPI);
 ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
 ADS8688 pressureADC;
 
-float calibrationA1 = -1.722651;
-float calibrationB1 = 11.209444;
-float calibrationA2 = -0.260906;
-float calibrationB2 = -6.138861;
-int hardCodeConstant1 = 20; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
-float convertToWeightLC1(float voltage)
+
+
+// HOW TO UPDATE (for bums):
+//Find the sensor you want (pt0..pt7 or lc0..lc1).
+//Replace only the numbers for m and b (and mountOffset for load cells).
+//If you want to disable one PT channel, set m = 0.0 (output becomes 0.0).
+struct LinearCalibration {
+  float m;
+  float b;
+};
+
+struct LoadCellCalibration {
+  float m;
+  float b;
+  float mountOffset; //when tighten bolt, sometimes b value change, this fixes it.
+};
+
+LinearCalibration PT_CALIBRATION[PT_CHANNEL_COUNT] = {
+//{m, b}
+  {2.59713f, 1005.1352f},    // pt0
+  {8.187604f, 1002.913757f}, // pt1
+  {0.036137f, 1350.183472f}, // pt2
+  {8.142941f, 1035.41272f},  // pt3
+  {0.0f, 0.0f},              // pt4 (disabled if m=0)
+  {8.218279f, 999.9568237f}, // pt5
+  {8.126287f, 968.913f},     // pt6
+  {5.134613f, 1067.228f}     // pt7
+};
+
+LoadCellCalibration LC_CALIBRATION[LC_CHANNEL_COUNT] = {
+//{m, b, mountOffset}
+  {-1.722651f, 11.209444f, 20.0f},  // lc0
+  {-0.260906f, -6.138861f, 52.0f}   // lc1
+};
+
+float applyLinearCalibration(float raw, const LinearCalibration& cal)
 {
-  return (voltage-calibrationB1)/calibrationA1 + hardCodeConstant1;
+  if (cal.m == 0.0f)
+    return 0.0f;
+  return (raw - cal.b) / cal.m;
 }
 
-int hardCodeConstant2 = 52; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
-float convertToWeightLC2(float voltage)
+float applyLoadCellCalibration(float voltage, const LoadCellCalibration& cal)
 {
-  return (voltage-calibrationB2)/calibrationA2 + hardCodeConstant2;
+  if (cal.m == 0.0f)
+    return 0.0f;
+  return (voltage - cal.b) / cal.m + cal.mountOffset;
 }
-
-float getCalibratedValue(float m, float b, float raw)
-{
-  return (raw - b) / m;
-}
-float mValues[8] = {2.59713, 8.187604, 0.036137, 8.142941, 0, 8.218279, 8.126287, 5.134613};
-float bValues[8] = {1005.1352, 1002.913757, 1350.183472, 1035.41272, 0, 999.9568237, 968.913, 1067.228};
 
 bool waitForDRDY(uint32_t timeout_us = 2000)
 {
@@ -81,8 +110,8 @@ void samplingTask(void *pvParameters)
 
   while (true)
   {
-    float ptVoltages[8];
-    float ptCalibrated[8];
+    float ptVoltages[PT_CHANNEL_COUNT];
+    float ptCalibrated[PT_CHANNEL_COUNT];
     float lcCalibrated0 = 0.0;
     float lcCalibrated1 = 0.0;
     bool validSample = false;
@@ -106,8 +135,8 @@ void samplingTask(void *pvParameters)
 
       if (validSample)
       {
-        lcCalibrated0 = convertToWeightLC1(lcVoltage0);
-        lcCalibrated1 = convertToWeightLC2(lcVoltage1);
+        lcCalibrated0 = applyLoadCellCalibration(lcVoltage0, LC_CALIBRATION[0]);
+        lcCalibrated1 = applyLoadCellCalibration(lcVoltage1, LC_CALIBRATION[1]);
       }
 
       xSemaphoreGive(spiMutex);
@@ -115,13 +144,13 @@ void samplingTask(void *pvParameters)
 
     if (validSample)
     {
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < PT_CHANNEL_COUNT; i++)
       {
-        ptCalibrated[i] = getCalibratedValue(mValues[i], bValues[i], ptVoltages[i]);
+        ptCalibrated[i] = applyLinearCalibration(ptVoltages[i], PT_CALIBRATION[i]);
       }
 
       SensorData newData;
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < PT_CHANNEL_COUNT; i++)
         newData.pt[i] = ptCalibrated[i];
 
       newData.lc[0] = lcCalibrated0;
@@ -167,16 +196,30 @@ void publishTask(void *pvParameters)
   }
 }
 
-void setup()
-{
+void pinModeInit() {
   pinMode(DE_RE_PIN, OUTPUT);
   digitalWrite(DE_RE_PIN, HIGH);
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, HIGH);
+}
+
+void loadCellInit() {
+  loadCellADC.InitializeADC();
+  loadCellADC.setPGA(PGA_64);
+  loadCellADC.setDRATE(DRATE_1000SPS);
+  pressureADC.begin(ADS1256_MISO, ADS1256_SCLK, ADS1256_MOSI, ADS8688_CS, 4.1, 0x05);
+  pressureADC.setInputRange(ADS8688_CS, 0x05);
+  xSemaphoreGive(spiMutex); 
+}
+
+void setup()
+{
+  pinModeInit();
+
   Serial.begin(115200);
   while (!Serial)
     delay(10);
   delay(2000);
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED, HIGH);
 
   sensorQueue = xQueueCreate(1, sizeof(SensorData));
   spiMutex = xSemaphoreCreateMutex();
@@ -184,12 +227,7 @@ void setup()
   sharedSPI.begin(ADS1256_SCLK, ADS1256_MISO, ADS1256_MOSI, -1);
   if (xSemaphoreTake(spiMutex, portMAX_DELAY) == pdTRUE)
   {
-    loadCellADC.InitializeADC();
-    loadCellADC.setPGA(PGA_64);
-    loadCellADC.setDRATE(DRATE_1000SPS);
-    pressureADC.begin(ADS1256_MISO, ADS1256_SCLK, ADS1256_MOSI, ADS8688_CS, 4.1, 0x05);
-    pressureADC.setInputRange(ADS8688_CS, 0x05);
-    xSemaphoreGive(spiMutex);
+    loadCellInit();
   }
 
   xTaskCreatePinnedToCore(samplingTask, "Sampling Task", 4096, NULL, 3, NULL, 1);
