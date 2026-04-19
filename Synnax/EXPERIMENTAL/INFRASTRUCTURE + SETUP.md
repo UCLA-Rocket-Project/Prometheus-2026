@@ -27,7 +27,7 @@ Everything else including monitoring and commanding happens over the network fro
 
 ---
 
-SETUP WORKFLOW
+**SETUP WORKFLOW**
 
 First, flash the two ESP32s with their respective firmware files using the Arduino IDE or PlatformIO on your development machine. 
 The controls firmware goes on the Controls ESP32 and the DAQ firmware goes on the DAQ ESP32. 
