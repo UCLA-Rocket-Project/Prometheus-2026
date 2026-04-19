@@ -22,8 +22,9 @@ To run the whole thing, you SSH into the Pi from any computer, navigate to the p
 That script starts the controls side and the DAQ side at the same time. 
 When you want to stop, you press Ctrl+C in the SSH terminal and both sides shut down cleanly.
 
-The only things that need to be physically present at the test site are the Pi, the two ESP32s, and whatever relay board and sensors are wired up to them. 
-Everything else, including monitoring and commanding, happens over the network from wherever the operator is sitting.
+The only thing that needs to be physically present at the test site are the Pi, the two ESP32s, and whatver relay board and sensors are wired up to them.
+Everything else including monitoring and commanding happens over the network from wherever the operator is sitting.
+
 ---
 
 SETUP WORKFLOW
