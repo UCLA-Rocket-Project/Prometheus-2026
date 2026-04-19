@@ -1,6 +1,26 @@
-The system is built around a Raspberry Pi that acts as the central hub for everything. The Pi has two USB cables coming out of it. One goes to the Controls ESP32, which is the microcontroller that physically drives the valves. The other goes to the DAQ ESP32, which is the microcontroller that reads all the sensors. The Pi talks to both of these over serial at 115200 baud, meaning it is just sending and receiving raw text over a USB connection like a very simple wire.
-The Pi also runs Synnax, which is a time-series database with a web interface. Synnax is what the operator actually interacts with. From any computer on the same network, you open a browser, go to the Pi's IP address on port 9091, and you get the Synnax console. From there you can flip valves, arm the system, and watch sensor data in real time. The Pi is the only machine that needs to be physically near the rocket hardware. The operator's computer just needs to be on the same WiFi or Ethernet network.
-When the operator flips a valve in the Synnax console, that command goes from the browser to the Synnax server running on the Pi. Python scripts running on the Pi pick up that command, package it up, and send it over the USB serial cable to the Controls ESP32. The ESP32 then drives the GPIO pins that are wired to the relay board, which actually opens or closes the valves. The Pi also sends back a confirmation to Synnax so the console always shows the real applied state, not just what was requested.
-On the sensor side, the DAQ ESP32 is constantly reading 8 pressure transducers and 2 load cells. It formats those readings into a line of text and sends them over the USB serial cable to the Pi. A Python script on the Pi reads those lines as fast as they come in and writes the values into Synnax. That is how sensor data ends up visible in the console in real time.
-To run the whole thing, you SSH into the Pi from any computer, navigate to the project folder, and run one Python script. That script starts the controls side and the DAQ side at the same time. When you want to stop, you press Ctrl+C in the SSH terminal and both sides shut down cleanly.
-The only things that need to be physically present at the test site are the Pi, the two ESP32s, and whatever relay board and sensors are wired up to them. Everything else, including monitoring and commanding, happens over the network from wherever the operator is sitting.
+The system is built around a Raspberry Pi that acts as the central hub for everything. 
+The Pi has two USB cables coming out of it. One goes to the Controls ESP32, which is the microcontroller that physically drives the valves. 
+The other goes to the DAQ ESP32, which is the microcontroller that reads all the sensors. 
+The Pi talks to both of these over serial at 115200 baud, meaning it is just sending and receiving raw text over a USB connection like a very simple wire.
+
+The Pi also runs Synnax, which is a time-series database with a web interface. 
+Synnax is what the operator actually interacts with. From any computer on the same network, you open a browser, go to the Pi's IP address on port 9091, and you get the Synnax console. 
+From there you can flip valves, arm the system, and watch sensor data in real time. The Pi is the only machine that needs to be physically near the rocket hardware. 
+The operator's computer just needs to be on the same WiFi or Ethernet network.
+
+When the operator flips a valve in the Synnax console, that command goes from the browser to the Synnax server running on the Pi. 
+Python scripts running on the Pi pick up that command, package it up, and send it over the USB serial cable to the Controls ESP32. 
+The ESP32 then drives the GPIO pins that are wired to the relay board, which actually opens or closes the valves. 
+The Pi also sends back a confirmation to Synnax so the console always shows the real applied state, not just what was requested.
+
+On the sensor side, the DAQ ESP32 is constantly reading 8 pressure transducers and 2 load cells. 
+It formats those readings into a line of text and sends them over the USB serial cable to the Pi. 
+A Python script on the Pi reads those lines as fast as they come in and writes the values into Synnax. 
+That is how sensor data ends up visible in the console in real time.
+
+To run the whole thing, you SSH into the Pi from any computer, navigate to the project folder, and run one Python script. 
+That script starts the controls side and the DAQ side at the same time. 
+When you want to stop, you press Ctrl+C in the SSH terminal and both sides shut down cleanly.
+
+The only things that need to be physically present at the test site are the Pi, the two ESP32s, and whatever relay board and sensors are wired up to them. 
+Everything else, including monitoring and commanding, happens over the network from wherever the operator is sitting.
