@@ -131,10 +131,7 @@ void serialRxTask(void* pvParameters) {
   }
 }
 
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-
+void setPinModes() {
   pinMode(PIN_ABORT_SIREN, OUTPUT);
   pinMode(PIN_IGNITE, OUTPUT);
   pinMode(PIN_FILL, OUTPUT);
@@ -145,7 +142,14 @@ void setup() {
   pinMode(PIN_PURGE, OUTPUT);
   pinMode(PIN_OUTLET, OUTPUT);
   pinMode(PIN_ABORT_VALVE, OUTPUT);
+}
 
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  setPinModes();
+  
   safeShutdown("INITIAL SAFE");  // start in safe mode
 
   commandQueue = xQueueCreate(1, sizeof(CommandPacket));
