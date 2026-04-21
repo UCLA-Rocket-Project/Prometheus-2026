@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAPID-0 | UCLA Rocket Project Ground Station</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #0d1117;
+        color: #e6edf3;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        overflow: hidden;
+      }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: #161b22; }
+      ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+      .leaflet-container { background: #0d1117 !important; }
+      @keyframes pulse-ring {
+        0% { transform: scale(0.8); opacity: 1; }
+        100% { transform: scale(2.4); opacity: 0; }
+      }
+      @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+      .pulse-dot::after {
+        content: '';
+        position: absolute;
+        top: 50%; left: 50%;
+        width: 100%; height: 100%;
+        transform: translate(-50%,-50%);
+        background: inherit;
+        border-radius: 50%;
+        animation: pulse-ring 1.4s ease-out infinite;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-785291d8.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    
+  </body>
+</html>
