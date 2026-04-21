@@ -101,6 +101,27 @@ static bool computeRawToEngineeringFit(const std::vector<float>& rawVals, const 
   return true;
 }
 
+static void liveReadChannel(SensorType type, int channel) {
+  Serial.println();
+  Serial.print("Live raw read for ");
+  Serial.print(type == SENSOR_PT ? "PT" : "LC");
+  Serial.print(channel);
+  Serial.println(".");
+  Serial.println("Press ENTER to read one sample average, or type q then ENTER to stop.");
+
+  while (true) {
+    Serial.print("> ");
+    String cmd = readLineTrimmed();
+    if (cmd == "q" || cmd == "Q") {
+      Serial.println("Leaving live read mode.");
+      return;
+    }
+    float raw = readRawAverage(type, channel);
+    Serial.print("Current raw average = ");
+    Serial.println(raw, 8);
+  }
+}
+
 static void calibrateOneChannel(SensorType type, int channel) {
   Serial.println();
   Serial.print("=== Calibrating ");
@@ -173,9 +194,10 @@ void startCalibration() {
 
   while (true) {
     Serial.println();
-    Serial.println("Choose sensor type:");
-    Serial.println("  1 = PT");
-    Serial.println("  2 = LC");
+    Serial.println("Choose mode:");
+    Serial.println("  1 = Calibrate PT");
+    Serial.println("  2 = Calibrate LC");
+    Serial.println("  3 = Live raw read (no storage)");
     Serial.println("  q = quit");
     Serial.print("> ");
 
@@ -193,6 +215,18 @@ void startCalibration() {
     } else if (mode == "2") {
       type = SENSOR_LC;
       maxChannels = 2;
+    } else if (mode == "3") {
+      int typeChoice = readIntInRange("Read which sensor type? (1=PT, 2=LC): ", 1, 2);
+      if (typeChoice == 1) {
+        type = SENSOR_PT;
+        maxChannels = 8;
+      } else {
+        type = SENSOR_LC;
+        maxChannels = 2;
+      }
+      int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
+      liveReadChannel(type, channel);
+      continue;
     } else {
       Serial.println("Invalid selection.");
       continue;
