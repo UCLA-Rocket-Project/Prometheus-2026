@@ -43,10 +43,11 @@ ADS8688 pressureADC;
 
 
 
-// HOW TO UPDATE (for bums):
-//Find the sensor you want (pt0..pt7 or lc0..lc1).
-//Replace only the numbers for m and b (and mountOffset for load cells).
-//If you want to disable one PT channel, set m = 0.0 (output becomes 0.0).
+// HOW TO UPDATE:
+// Find the sensor you want (pt0..pt7 or lc0..lc1).
+// Replace only the numbers for m and b.
+// Calibration now uses DIRECT form: calibrated = raw * m + b.
+// If you want to disable one PT channel, set m = 0.0 (output becomes 0.0).
 struct LinearCalibration {
   float m;
   float b;
@@ -55,39 +56,38 @@ struct LinearCalibration {
 struct LoadCellCalibration {
   float m;
   float b;
-  float mountOffset; //when tighten bolt, sometimes b value change, this fixes it.
 };
 
 LinearCalibration PT_CALIBRATION[PT_CHANNEL_COUNT] = {
 //{m, b}
-  {2.59713f, 1005.1352f},    // pt0
-  {8.187604f, 1002.913757f}, // pt1
-  {0.036137f, 1350.183472f}, // pt2
-  {8.142941f, 1035.41272f},  // pt3
+  {0.38504041f, -387.01766950f},    // pt0
+  {0.12213585f, -122.49172737f},    // pt1
+  {27.67246866f, -37362.90981542f}, // pt2
+  {0.12280575f, -127.15463860f},    // pt3
   {0.0f, 0.0f},              // pt4 (disabled if m=0)
-  {8.218279f, 999.9568237f}, // pt5
-  {8.126287f, 968.913f},     // pt6
-  {5.134613f, 1067.228f}     // pt7
+  {0.12167998f, -121.67472335f},    // pt5
+  {0.12305743f, -119.23194443f},    // pt6
+  {0.19475664f, -207.84974447f}     // pt7
 };
 
 LoadCellCalibration LC_CALIBRATION[LC_CHANNEL_COUNT] = {
-//{m, b, mountOffset}
-  {-1.722651f, 11.209444f, 20.0f},  // lc0
-  {-0.260906f, -6.138861f, 52.0f}   // lc1
+//{m, b}
+  {-0.58050064f, 26.50708936f}, // lc0
+  {-3.83279802f, 28.47098572f}  // lc1
 };
 
 float applyLinearCalibration(float raw, const LinearCalibration& cal)
 {
   if (cal.m == 0.0f)
     return 0.0f;
-  return (raw - cal.b) / cal.m;
+  return raw * cal.m + cal.b;
 }
 
 float applyLoadCellCalibration(float voltage, const LoadCellCalibration& cal)
 {
   if (cal.m == 0.0f)
     return 0.0f;
-  return (voltage - cal.b) / cal.m + cal.mountOffset;
+  return voltage * cal.m + cal.b;
 }
 
 bool waitForDRDY(uint32_t timeout_us = 2000)
