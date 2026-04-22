@@ -61,7 +61,7 @@
 struct SensorData
 {
   float pt[8];
-  float lc[2];
+  float lc[3];
   uint32_t timestamp;
 };
 
@@ -103,6 +103,11 @@ float calibrationB2 = -3.46143;
 float convertToWeightLC2(float voltage)
 {
   return (calibrationA2 * voltage) + calibrationB2;
+}
+float calibrationA3 = 0;
+float calibrationB3 = 0;
+float convertToWeightLC3(float voltage) {
+  return (calibrationA3 * voltage) + calibrationB3;
 }
 
 // ─── STATS COUNTERS ────────────────────────────────────────────────────────────
@@ -207,6 +212,99 @@ void testBlink(uint8_t pin) {
   delay(90);
 }
 
+const uint8_t ptToLed[8] = {
+  LED2, //PT0
+  LED1, //PT1
+  LED4, //PT2
+  LED5, //PT3
+  LED0, //PT4
+  LED6, //PT5
+  LED7, //PT6
+  LED3  //PT7
+};
+
+void blinkPT(const bool ptConnected[8]) {
+  for (int pt = 0; pt < 8; pt++) {
+    if (ptConnected[pt]) {
+      uint8_t led = ptToLed[pt];
+      testBlink(led);
+      testBlink(led);
+      testBlink(led);
+    }
+  }
+}
+
+void blinkSetup() {
+  float ptVoltages[8];
+  bool startupPtCheck[8] = {false, false, false, false, false, false, false, false};
+
+  bool lc1Valid = false;
+  bool lc2Valid = false;
+  bool lc3Valid = false;
+
+  int32_t rawADC1 = 0;
+  int32_t rawADC2 = 0;
+  int32_t rawADC3 = 0;
+  float lcVoltage1 = NAN;
+  float lcVoltage2 = NAN;
+  float lcVoltage3 = NAN;
+
+  for (int i = 0; i < 8; i++) {
+    ptVoltages[i] = NAN;
+  }
+
+  if (xSemaphoreTake(spiMutex, portMAX_DELAY) == pdTRUE) {
+    pressureADC.readAllChannels(ADS8688_CS, true, ptVoltages);
+    delayMicroseconds(5);
+
+    for (int i = 0; i < 8; i++) {
+      startupPtCheck[i] = isValidPTVoltage(ptVoltages[i]);
+    }
+    if (waitForDRDY())
+      {
+        rawADC1 = loadCellADC.readDifferentialFaster(DIFF_0_1);
+        lcVoltage1 = loadCellADC.convertToVoltage(rawADC1);
+        lc1Valid = isValidLCVoltage(lcVoltage1);
+      }
+
+      if (waitForDRDY())
+      {
+        rawADC2 = loadCellADC.readDifferentialFaster(DIFF_2_3);
+        lcVoltage2 = loadCellADC.convertToVoltage(rawADC2);
+        lc2Valid = isValidLCVoltage(lcVoltage2);
+      }
+
+      if (waitForDRDY())
+      {
+        rawADC3 = loadCellADC.readDifferentialFaster(DIFF_4_5);
+        lcVoltage3 = loadCellADC.convertToVoltage(rawADC3);
+        lc3Valid = isValidLCVoltage(lcVoltage3);
+      }
+
+      xSemaphoreGive(spiMutex);
+  }
+
+  blinkPT(startupPtCheck);
+
+  if (lc1Valid) { //LC0
+    testBlink(LED8);
+    testBlink(LED8);
+    testBlink(LED8);
+  }
+
+  if (lc2Valid) { //LC1
+    testBlink(LED9);
+    testBlink(LED9);
+    testBlink(LED9);
+  }
+
+  if (lc3Valid) { //LC2
+    testBlink(LED10);
+    testBlink(LED10);
+    testBlink(LED10);
+  }
+}
+
 void samplingTask(void *pvParameters)
 {
   if (DEBUG_TASKS) DPRINT("TASK", "samplingTask started on core %d", xPortGetCoreID());
@@ -220,15 +318,19 @@ void samplingTask(void *pvParameters)
   {
     float lcCalibrated1 = NAN;
     float lcCalibrated2 = NAN;
+    float lcCalibrated3 = NAN;
     bool lc1Valid = false;
     bool lc2Valid = false;
+    bool lc3Valid = false;
     bool anyPTValid = false;
     bool validSample = false;
 
     int32_t rawADC1 = 0;
     int32_t rawADC2 = 0;
+    int32_t rawADC3 = 0;
     float lcVoltage1 = NAN;
     float lcVoltage2 = NAN;
+    float lcVoltage3 = NAN;
 
     for (int i = 0; i < 8; i++) {
       ptVoltages[i] = NAN;
@@ -278,6 +380,21 @@ void samplingTask(void *pvParameters)
         }
       }
 
+      if (waitForDRDY())
+      {
+        rawADC3 = loadCellADC.readDifferentialFaster(DIFF_4_5);
+        lcVoltage3 = loadCellADC.convertToVoltage(rawADC3);
+
+        lc3Valid = isValidLCVoltage(lcVoltage3);
+        if (lc3Valid) {
+          lcCalibrated3 = convertToWeightLC3(lcVoltage3);
+        } else {
+          if (((localSampleCount % SAMPLE_PRINT_EVERY) == 0)) {
+            DPRINT("SENSOR", "LC3 missing or invalid lcVoltage3=%.6f", lcVoltage3);
+          }
+        }
+      }
+
       for (int i = 0; i < 8; i++) {
         if (!ptCheck[i]) {
           ptCalibrated[i] = NAN;
@@ -302,10 +419,11 @@ void samplingTask(void *pvParameters)
       if (DEBUG_SAMPLING && (localSampleCount % SAMPLE_PRINT_EVERY == 0))
       {
         DPRINT("SAMPLE",
-          "#%lu | rawADC1=%ld lcVoltage1=%.6fV lcCal1=%.4f | rawADC2=%ld lcVoltage2=%.6fV lcCal2=%.4f",
+          "#%lu | rawADC1=%ld lcVoltage1=%.6fV lcCal1=%.4f | rawADC2=%ld lcVoltage2=%.6fV lcCal2=%.4f | rawADC3=%ld lcVoltage3=%.6fV lcCal3=%.4f",
           (unsigned long)localSampleCount,
           (long)rawADC1, lcVoltage1, lcCalibrated1,
-          (long)rawADC2, lcVoltage2, lcCalibrated2);
+          (long)rawADC2, lcVoltage2, lcCalibrated2,
+          (long)rawADC3, lcVoltage3, lcCalibrated3);
 
         DPRINT("SAMPLE",
           "PT_raw[0..7]: %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f",
@@ -321,7 +439,7 @@ void samplingTask(void *pvParameters)
       if (DEBUG_TASKS) DPRINT("MUTEX", "samplingTask failed to take spiMutex (total fails: %u)", stat_mutexFails);
     }
 
-    validSample = anyPTValid || lc1Valid || lc2Valid;
+    validSample = anyPTValid || lc1Valid || lc2Valid || lc3Valid;
 
     if (validSample)
     {
@@ -332,14 +450,15 @@ void samplingTask(void *pvParameters)
 
       newData.lc[0] = lcCalibrated1;
       newData.lc[1] = lcCalibrated2;
+      newData.lc[2] = lcCalibrated3;
       newData.timestamp = millis();
 
       if (DEBUG_CALIBRATION && (localSampleCount % SAMPLE_PRINT_EVERY == 0))
       {
-        DPRINT("CALIB", "PT_cal: %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f | LC1=%.4f LC2=%.4f | t=%lums",
+        DPRINT("CALIB", "PT_cal: %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f | LC1=%.4f LC2=%.4f LC3=%.4f| t=%lums",
           newData.pt[0], newData.pt[1], newData.pt[2], newData.pt[3],
           newData.pt[4], newData.pt[5], newData.pt[6], newData.pt[7],
-          newData.lc[0], newData.lc[1], (unsigned long)newData.timestamp);
+          newData.lc[0], newData.lc[1], newData.lc[2], (unsigned long)newData.timestamp);
       }
 
       xQueueOverwrite(sensorQueue, &newData);
@@ -375,9 +494,9 @@ void publishTask(void *pvParameters)
       snprintf(
           finalStr,
           sizeof(finalStr),
-          "rocket_data pt0=%4.10f,pt1=%4.10f,pt2=%4.10f,pt3=%4.10f,pt4=%4.10f,pt5=%4.10f,pt6=%4.10f,pt7=%4.10f,lc0=%4.10f,lc1=%4.10f,uptime_ms=%lu",
+          "rocket_data pt0=%4.10f,pt1=%4.10f,pt2=%4.10f,pt3=%4.10f,pt4=%4.10f,pt5=%4.10f,pt6=%4.10f,pt7=%4.10f,lc0=%4.10f,lc1=%4.10f,lc2=%4.10f,uptime_ms=%lu",
           localCopy.pt[0], localCopy.pt[1], localCopy.pt[2], localCopy.pt[3], localCopy.pt[4], localCopy.pt[5], localCopy.pt[6], localCopy.pt[7],
-          localCopy.lc[0], localCopy.lc[1], localCopy.timestamp);
+          localCopy.lc[0], localCopy.lc[1], localCopy.lc[2], localCopy.timestamp);
 
       bool ok = client.publish(DAQ_TOPIC, finalStr);
       localPublishCount++;
@@ -566,29 +685,32 @@ void setup()
 
 if (!ledDriver.begin_I2C(0x20, &Wire))
   DPRINT("LEDdriver", "FAILED");
-else
+else {
   DPRINT("LEDdriver", "SUCCESS");
 
-ledDriver.pinMode(LED0, OUTPUT);
-ledDriver.pinMode(LED1, OUTPUT);
-ledDriver.pinMode(LED2, OUTPUT);
-ledDriver.pinMode(LED3, OUTPUT);
-ledDriver.pinMode(LED4, OUTPUT);
-ledDriver.pinMode(LED5, OUTPUT);
-ledDriver.pinMode(LED6, OUTPUT);
-ledDriver.pinMode(LED7, OUTPUT);
-ledDriver.pinMode(LED8, OUTPUT);
-ledDriver.pinMode(LED9, OUTPUT);
-ledDriver.pinMode(LED10, OUTPUT);
+  ledDriver.pinMode(LED0, OUTPUT);
+  ledDriver.pinMode(LED1, OUTPUT);
+  ledDriver.pinMode(LED2, OUTPUT);
+  ledDriver.pinMode(LED3, OUTPUT);
+  ledDriver.pinMode(LED4, OUTPUT);
+  ledDriver.pinMode(LED5, OUTPUT);
+  ledDriver.pinMode(LED6, OUTPUT);
+  ledDriver.pinMode(LED7, OUTPUT);
+  ledDriver.pinMode(LED8, OUTPUT);
+  ledDriver.pinMode(LED9, OUTPUT);
+  ledDriver.pinMode(LED10, OUTPUT);
 
-testBlink(LED0);
-testBlink(LED1);
-testBlink(LED2);
-testBlink(LED3);
-testBlink(LED4);
-testBlink(LED5);
-testBlink(LED6);
-testBlink(LED7);
+  // testBlink(LED0);
+  // testBlink(LED1);
+  // testBlink(LED2);
+  // testBlink(LED3);
+  // testBlink(LED4);
+  // testBlink(LED5);
+  // testBlink(LED6);
+  // testBlink(LED7);
+
+  blinkSetup();
+}
 
   // Spawn tasks
   BaseType_t r;
