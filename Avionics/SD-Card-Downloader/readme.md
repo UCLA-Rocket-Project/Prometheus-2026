@@ -8,4 +8,4 @@
     const char *password = "";
     ```
 3. Flash the ESP32 with the SD card with this code
-4. Grab the file you want using the following command: `curl -o file_name.csv "http://172.20.10.6/download-chunked?fileName=file_name.csv"`
+4. Grab the file you want using the following command: `curl -o file_name.csv "http://<IP address of ESP32>/download-chunked?fileName=file_name.csv"`
