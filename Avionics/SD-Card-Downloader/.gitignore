@@ -1,0 +1,13 @@
+.pio
+.vscode/.browse.c_cpp.db*
+.vscode/settings.json
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
+plot-scripts
+.cache
+compile_commands.json
+wetdress*
+*.png
+*.csv
+*.txt
