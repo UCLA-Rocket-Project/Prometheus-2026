@@ -57,7 +57,7 @@ export default function QuatCanvas({ qw = 1, qx = 0, qy = 0, qz = 0 }) {
     for (let i = 0; i < 4; i++) {
       const fin = new THREE.Mesh(finGeo, finMat);
       fin.position.y = -0.6;
-      fin.rotation.y = (i * Math.PI) / 2;
+      fin.rotation.y = (i * Math.PI) / 2 + Math.PI / 2;
       fin.position.x = Math.sin((i * Math.PI) / 2) * 0.18;
       fin.position.z = Math.cos((i * Math.PI) / 2) * 0.18;
       rocketGroup.add(fin);

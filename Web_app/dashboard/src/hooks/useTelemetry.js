@@ -52,7 +52,7 @@ export default function useTelemetry() {
     let retryTimeout;
 
     function connect() {
-      ws = new WebSocket('ws://localhost:8765');
+      ws = new WebSocket(`ws://${window.location.hostname}:8765`);
       wsRef.current = ws;
 
       ws.onopen = () => setConnected(true);

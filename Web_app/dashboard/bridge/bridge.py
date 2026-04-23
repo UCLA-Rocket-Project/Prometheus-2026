@@ -274,7 +274,7 @@ async def main():
 
     print(f"[WS] Starting WebSocket server on ws://localhost:{args.ws_port}", flush=True)
 
-    async with websockets.serve(ws_handler, "localhost", args.ws_port):
+    async with websockets.serve(ws_handler, "0.0.0.0", args.ws_port):
         if args.demo:
             await demo_loop(write_api, influx_opts)
         else:
