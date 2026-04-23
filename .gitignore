@@ -2,3 +2,5 @@
 /.venv
 EGSE/DAQ/telegraf.conf
 EGSE/DAQ/notes.txt
+.pio/
+.vscode/
