@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//Users/meghjoshi/Prometheus-2026/Avionics/Nose-Cone-Board/**)"
-    ]
-  }
-}
