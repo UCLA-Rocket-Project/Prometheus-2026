@@ -10,6 +10,10 @@
 #define PIN_MPV 38
 #define PIN_IGNITE 39
 #define PIN_OTHER 40
+
+#define PIN_LED1 1
+#define PIN_LED2 2
+
 volatile unsigned long last_msg_time = 0;
 unsigned long last_mqtt_attempt = 0;
 const unsigned long COMMS_TIMEOUT = 10000;
@@ -56,6 +60,9 @@ void enterSafeState(const char* reason) {
     digitalWrite(PIN_MPV, LOW);
     digitalWrite(PIN_PURGE, LOW);
     digitalWrite(PIN_OTHER, LOW);
+
+    bool inSafeState = true;
+    digitalWrite(PIN_LED1, inSafeState ? HIGH : LOW);
 }
 void initializeAllOutputPins() {
     pinMode(PIN_IGNITE, OUTPUT);
@@ -66,8 +73,23 @@ void initializeAllOutputPins() {
     pinMode(PIN_MPV, OUTPUT);
     pinMode(PIN_PURGE, OUTPUT);
     pinMode(PIN_OTHER, OUTPUT);
-}
 
+    pinMode(PIN_LED1, OUTPUT);
+    pinMode(PIN_LED2, OUTPUT);
+}
+void flashLEDs(int numFlashes = 10, int onMs = 50, int offMs = 200){
+    for(int i = 0; i < numFlashes; i++){
+        digitalWrite(PIN_LED1, HIGH);
+        digitalWrite(PIN_LED2, HIGH);
+
+        delay(onMs);
+
+        digitalWrite(PIN_LED1, LOW);
+        digitalWrite(PIN_LED2, LOW);
+
+        delay(offMs);
+    }
+}
 
 // WIFI + Mosquitto
 void mqttMessageCallback(char* topic, byte* payload, unsigned int length) {
@@ -199,6 +221,18 @@ void taskPacketHandler(void* pvParameters) {
                 digitalWrite(PIN_MPV, LOW);
                 digitalWrite(PIN_IGNITE, LOW);
             }
+
+            bool inSafeState = 
+            !cmd.fill && 
+            !cmd.dump && 
+            !cmd.vent && 
+            !cmd.qd && 
+            !cmd.purge && 
+            (
+                !cmd.armState ||
+                (!cmd.mpv && !cmd.ignite)
+            );
+            digitalWrite(PIN_LED1, inSafeState ? HIGH : LOW);
         }
     }
 }
@@ -222,6 +256,7 @@ void taskMosquittoTopicReconnection(void* pvParameters) {
             continue;
         }
         if (!mosquittoClient.connected()) {
+            digitalWrite(PIN_LED2, LOW);
             if (millis() - last_mqtt_attempt > 2000) {
                 connectToMosquittoTopic();
                 last_mqtt_attempt = millis();
@@ -229,6 +264,8 @@ void taskMosquittoTopicReconnection(void* pvParameters) {
         }
         mosquittoClient.loop();
         vTaskDelay(pdMS_TO_TICKS(100));
+        digitalWrite(PIN_LED2, HIGH);
+        // vTaskDelay(pdMS_TO_TICKS(400));
     }
 }
 
@@ -239,6 +276,8 @@ void setup() {
 
     initializeAllOutputPins();
     enterSafeState("INITIAL SAFE");
+
+    flashLEDs();
 
     //Create FreeRTOS Queue
     commandQueue = xQueueCreate(1, sizeof(CommandPacket));
