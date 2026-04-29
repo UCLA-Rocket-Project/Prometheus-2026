@@ -4,7 +4,7 @@ import requests
 import socketio
 
 # --- CONFIGURATION ---
-PORT = '/dev/cu.usbserial-120' # double check, may randomly change
+PORT = "/dev/cu.usbserial-110"  # double check, may randomly change
 BAUDRATE = 115200
 WEBSOCKET_ADDRESS = "http://localhost:3001/"
 TELEGRAF_URL = "http://localhost:8094/telegraf"
@@ -36,7 +36,7 @@ latest_fields = {}
 try:
     while True:
         if ser.in_waiting > 0:
-            raw_line = ser.readline().decode('utf-8', errors='ignore').strip()
+            raw_line = ser.readline().decode("utf-8", errors="ignore").strip()
 
             print(raw_line)
 
@@ -76,7 +76,7 @@ try:
 
                     # optional HUD
                     if sio.connected:
-                        sio.emit('live/receive-data-stream-from-mqtt', latest_fields)
+                        sio.emit("live/receive-data-stream-from-mqtt", latest_fields)
 
                 except Exception as e:
                     print("RSSI parse error:", e)

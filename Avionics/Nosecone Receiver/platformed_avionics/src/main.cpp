@@ -131,11 +131,6 @@ bool parseTelemetryPacket(char *packet, Telemetry &t) {
 // PRINT PARSED TELEMETRY
 // ============================================================
 void printTelemetry(const Telemetry &t, int rssi, float snr) {
-  Serial.print("RSSI: ");
-  Serial.print(rssi);
-  Serial.print("  SNR: ");
-  Serial.println(snr);
-
   Serial.print("SENDING: nosecone_data ");
   Serial.print("baro_alt=");    Serial.print(t.alt1AltM, 2);
   Serial.print(",ax=");         Serial.print(t.ax, 2);
@@ -149,6 +144,11 @@ void printTelemetry(const Telemetry &t, int rssi, float snr) {
   Serial.print(",gps_alt=");    Serial.print(t.gpsAltMm / 1000.0, 1);
   Serial.print(",gps_fix=");    Serial.print(t.fixType);
   Serial.println();
+
+  Serial.print("RSSI: ");
+  Serial.print(rssi);
+  Serial.print(" SNR: ");
+  Serial.println(snr);
 }
 
 // ============================================================
