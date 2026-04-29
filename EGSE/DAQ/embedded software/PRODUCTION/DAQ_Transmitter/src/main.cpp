@@ -32,6 +32,16 @@
 #define LED_RANGE_LOW 0
 #define LED_RANGE_HIGH 10
 
+int logicalPTIndexToDriverPin[8] = {
+  4,
+  5,
+  0,
+  6,
+  7,
+  3,
+  2,
+  1
+};
 
 
 
@@ -300,58 +310,33 @@ void setup()
   }else {
     Serial.println("LED SUCCESS");
 
-    // ledDriver.pinMode(LED0, OUTPUT);
-    // ledDriver.pinMode(LED1, OUTPUT);
-    // ledDriver.pinMode(LED2, OUTPUT);
-    // ledDriver.pinMode(LED3, OUTPUT);
-    // ledDriver.pinMode(LED4, OUTPUT);
-    // ledDriver.pinMode(LED5, OUTPUT);
-    // ledDriver.pinMode(LED6, OUTPUT);
-    // ledDriver.pinMode(LED7, OUTPUT);
-    // ledDriver.pinMode(LED8, OUTPUT);
-    // ledDriver.pinMode(LED9, OUTPUT);
-    // ledDriver.pinMode(LED10, OUTPUT);
 
     for(int i = LED_RANGE_LOW; i <= LED_RANGE_HIGH; i++){
       ledDriver.pinMode(i, OUTPUT);
       ledDriver.digitalWrite(i, LOW);
     }
 
-    // testBlink(LED0);
-    // testBlink(LED1);
-    // testBlink(LED2);
-    // testBlink(LED3);
-    // testBlink(LED4);
-    // testBlink(LED5);
-    // testBlink(LED6);
-    // testBlink(LED7);
-
-      // ledDriver.digitalWrite(LED0, HIGH);
-      // ledDriver.digitalWrite(LED1, LOW);
-      // ledDriver.digitalWrite(LED0, LOW);
-      // ledDriver.digitalWrite(LED1, LOW);
-      // ledDriver.digitalWrite(LED2, LOW);
-      // ledDriver.digitalWrite(LED3, LOW);
-      // ledDriver.digitalWrite(LED4, LOW);
-      // ledDriver.digitalWrite(LED5, LOW);
-      // ledDriver.digitalWrite(LED6, LOW);
-      // ledDriver.digitalWrite(LED7, LOW);
-      // ledDriver.digitalWrite(LED8, LOW);
-      // ledDriver.digitalWrite(LED9, LOW);
-      // ledDriver.digitalWrite(LED10, LOW);
-
       Serial.println("Turning on");
 
-      int i = 0;
-      while(true){
-        // ledDriver.digitalWrite(sensorToLED[i], HIGH);
-        ledDriver.digitalWrite(i, HIGH);
-        delay(100);
-        // ledDriver.digitalWrite(sensorToLED[i], LOW);
-        ledDriver.digitalWrite(i, LOW);
+      // int i = 0;
+      // while(true){
+      //   ledDriver.digitalWrite(i, HIGH);
+      //   delay(100);
+      //   ledDriver.digitalWrite((i - 1 + 11) % 11, LOW);
 
-        i++;
-        i %= 11;
+      //   i++;
+      //   i %= 11;
+      // }
+
+      while(true){
+        for(int i = 0; i < 11; i++){
+          ledDriver.digitalWrite(logicalPTIndexToDriverPin[i], HIGH);
+          delay(200);
+        }
+        for(int i = 10; i >= 0; i --){
+          ledDriver.digitalWrite(logicalPTIndexToDriverPin[i], LOW);
+          delay(200);
+        }
       }
 
 
