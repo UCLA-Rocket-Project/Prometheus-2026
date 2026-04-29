@@ -8,53 +8,36 @@
 #include <PubSubClient.h>
 #include "Adafruit_MCP23X17.h"
 
-// Load Cell (ADS1256) SPI Pins
-#define ADS1256_MISO 35
-#define ADS1256_SCLK 48
-#define ADS1256_MOSI 34
+// SPI
+#define MISO 35
+#define MOSI 34
+#define SCLK 48
+
+// Load Cell SPI Pins
 #define ADS1256_CS 7
 #define ADS1256_DRDY 4
 
-// PT (ADS8688) SPI
+// PT SPI Pins
 #define ADS8688_CS 36
 
-// LED indicator pin
-#define LED 90
+// RS484 Pins -- Not Used Yet
 #define RO_PIN 40
 #define DI_PIN 39
 #define DE_RE_PIN 41
-#define LED0 0 //PT4
-#define LED1 1 //PT1
-#define LED2 2 //PT0
-#define LED3 3 //PT7
-#define LED4 4 //PT2
-#define LED5 5 //PT3
-#define LED6 6 //PT5
-#define LED7 7 //PT6
-#define LED8 8 //LC0
-#define LED9 9 //LC1
-#define LED10 10 //LC2
 
+// LED Drive I2C Pins
 #define SDA 38
 #define SCL 39
+
+#define LED_RANGE_LOW 0
+#define LED_RANGE_HIGH 10
+
+
 
 
 Adafruit_MCP23X17 ledDriver;
 bool ptCheck[8];
 
-const uint8_t sensorToLED[11] = {
-  LED2, //PT0
-  LED1, //PT1
-  LED8, //LCs
-  LED9,
-  LED10,
-  LED4, //PT2
-  LED5, //PT3
-  LED0, //PT4
-  LED6, //PT5
-  LED7, //PT6
-  LED3,  //PT7
-};
 
 
 struct SensorData
@@ -317,17 +300,22 @@ void setup()
   }else {
     Serial.println("LED SUCCESS");
 
-    ledDriver.pinMode(LED0, OUTPUT);
-    ledDriver.pinMode(LED1, OUTPUT);
-    ledDriver.pinMode(LED2, OUTPUT);
-    ledDriver.pinMode(LED3, OUTPUT);
-    ledDriver.pinMode(LED4, OUTPUT);
-    ledDriver.pinMode(LED5, OUTPUT);
-    ledDriver.pinMode(LED6, OUTPUT);
-    ledDriver.pinMode(LED7, OUTPUT);
-    ledDriver.pinMode(LED8, OUTPUT);
-    ledDriver.pinMode(LED9, OUTPUT);
-    ledDriver.pinMode(LED10, OUTPUT);
+    // ledDriver.pinMode(LED0, OUTPUT);
+    // ledDriver.pinMode(LED1, OUTPUT);
+    // ledDriver.pinMode(LED2, OUTPUT);
+    // ledDriver.pinMode(LED3, OUTPUT);
+    // ledDriver.pinMode(LED4, OUTPUT);
+    // ledDriver.pinMode(LED5, OUTPUT);
+    // ledDriver.pinMode(LED6, OUTPUT);
+    // ledDriver.pinMode(LED7, OUTPUT);
+    // ledDriver.pinMode(LED8, OUTPUT);
+    // ledDriver.pinMode(LED9, OUTPUT);
+    // ledDriver.pinMode(LED10, OUTPUT);
+
+    for(int i = LED_RANGE_LOW; i <= LED_RANGE_HIGH; i++){
+      ledDriver.pinMode(i, OUTPUT);
+      ledDriver.digitalWrite(i, LOW);
+    }
 
     // testBlink(LED0);
     // testBlink(LED1);
@@ -340,25 +328,27 @@ void setup()
 
       // ledDriver.digitalWrite(LED0, HIGH);
       // ledDriver.digitalWrite(LED1, LOW);
-      ledDriver.digitalWrite(LED0, LOW);
-      ledDriver.digitalWrite(LED1, LOW);
-      ledDriver.digitalWrite(LED2, LOW);
-      ledDriver.digitalWrite(LED3, LOW);
-      ledDriver.digitalWrite(LED4, LOW);
-      ledDriver.digitalWrite(LED5, LOW);
-      ledDriver.digitalWrite(LED6, LOW);
-      ledDriver.digitalWrite(LED7, LOW);
-      ledDriver.digitalWrite(LED8, LOW);
-      ledDriver.digitalWrite(LED9, LOW);
-      ledDriver.digitalWrite(LED10, LOW);
+      // ledDriver.digitalWrite(LED0, LOW);
+      // ledDriver.digitalWrite(LED1, LOW);
+      // ledDriver.digitalWrite(LED2, LOW);
+      // ledDriver.digitalWrite(LED3, LOW);
+      // ledDriver.digitalWrite(LED4, LOW);
+      // ledDriver.digitalWrite(LED5, LOW);
+      // ledDriver.digitalWrite(LED6, LOW);
+      // ledDriver.digitalWrite(LED7, LOW);
+      // ledDriver.digitalWrite(LED8, LOW);
+      // ledDriver.digitalWrite(LED9, LOW);
+      // ledDriver.digitalWrite(LED10, LOW);
 
       Serial.println("Turning on");
 
       int i = 0;
       while(true){
-        ledDriver.digitalWrite(sensorToLED[i], HIGH);
+        // ledDriver.digitalWrite(sensorToLED[i], HIGH);
+        ledDriver.digitalWrite(i, HIGH);
         delay(100);
-        ledDriver.digitalWrite(sensorToLED[i], LOW);
+        // ledDriver.digitalWrite(sensorToLED[i], LOW);
+        ledDriver.digitalWrite(i, LOW);
 
         i++;
         i %= 11;
@@ -375,13 +365,13 @@ void setup()
   sensorQueue = xQueueCreate(1, sizeof(SensorData));
   spiMutex = xSemaphoreCreateMutex();
 
-  sharedSPI.begin(ADS1256_SCLK, ADS1256_MISO, ADS1256_MOSI, -1);
+  sharedSPI.begin(SCLK, MISO, MOSI, -1);
   if (xSemaphoreTake(spiMutex, portMAX_DELAY) == pdTRUE)
   {
     loadCellADC.InitializeADC();
     loadCellADC.setPGA(PGA_64);
     loadCellADC.setDRATE(DRATE_1000SPS);
-    pressureADC.begin(ADS1256_MISO, ADS1256_SCLK, ADS1256_MOSI, ADS8688_CS, 4.1, 0x05);
+    pressureADC.begin(MISO, SCLK, MOSI, ADS8688_CS, 4.1, 0x05);
     pressureADC.setInputRange(ADS8688_CS, 0x05);
     xSemaphoreGive(spiMutex);
   }
