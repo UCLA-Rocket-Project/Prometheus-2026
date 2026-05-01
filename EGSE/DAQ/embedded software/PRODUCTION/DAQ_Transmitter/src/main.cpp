@@ -43,12 +43,21 @@ int logicalPTIndexToDriverPin[8] = {
   1
 };
 
+int logicalToLibraryPtIndex[8] = {
+  3,
+  2,
+  1,
+  0,
+  7,
+  6,
+  5,
+  4
+};
+
 
 
 Adafruit_MCP23X17 ledDriver;
 bool ptCheck[8];
-
-
 
 struct SensorData
 {
@@ -171,6 +180,7 @@ void samplingTask(void *pvParameters)
   {
     float ptVoltages[8];
     float ptCalibrated[8];
+    float logicalPtVoltageOrdering[8];
     float lcCalibrated0 = 0.0;
     float lcCalibrated1 = 0.0;
     bool validSample = false;
@@ -178,6 +188,11 @@ void samplingTask(void *pvParameters)
     if (xSemaphoreTake(spiMutex, portMAX_DELAY) == pdTRUE)
     {
       pressureADC.readAllChannels(ADS8688_CS, true, ptVoltages);
+
+      for(int i = 0; i < 8; i++){
+        logicalPtVoltageOrdering[i] = ptVoltages[logicalToLibraryPtIndex[i]];
+      }
+
       delayMicroseconds(5);
 
       bool drdy0 = waitForDRDY();
@@ -205,7 +220,7 @@ void samplingTask(void *pvParameters)
     {
       for (int i = 0; i < 8; i++)
       {
-        ptCalibrated[i] = getCalibratedValue(mValues[i], bValues[i], ptVoltages[i]);
+        ptCalibrated[i] = getCalibratedValue(mValues[i], bValues[i], logicalPtVoltageOrdering[i]);
       }
 
       SensorData newData;
@@ -288,23 +303,14 @@ void setup()
     delay(10);
   delay(2000);
 
-  // Force CS HIGH via low-level IDF driver ASAP — before Arduino framework
-  // or flash controller can interfere with GPIO7
-  // gpio_config_t cs_conf = {};
-  // cs_conf.pin_bit_mask = (1ULL << ADS1256_CS);
-  // cs_conf.mode = GPIO_MODE_OUTPUT;
-  // cs_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-  // cs_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  // cs_conf.intr_type = GPIO_INTR_DISABLE;
-  // gpio_config(&cs_conf);
-  // gpio_set_level(GPIO_NUM_7, 1);
-  // CS is now held HIGH before anything else runs
-
-  Wire.begin(SDA, SCL); //hardcoded to pins 38, 39 --> SDA, SCL pins
+  //RS Pin Setup
   pinMode(DE_RE_PIN, OUTPUT);
   digitalWrite(DE_RE_PIN, HIGH);
 
-    
+
+  //LED Driver Init
+  Wire.begin(SDA, SCL); //hardcoded to pins 38, 39 --> SDA, SCL pins
+
   if (!ledDriver.begin_I2C(0x20, &Wire)){
     Serial.println("LED FAILED");
   }else {
@@ -315,37 +321,7 @@ void setup()
       ledDriver.pinMode(i, OUTPUT);
       ledDriver.digitalWrite(i, LOW);
     }
-
-      Serial.println("Turning on");
-
-      // int i = 0;
-      // while(true){
-      //   ledDriver.digitalWrite(i, HIGH);
-      //   delay(100);
-      //   ledDriver.digitalWrite((i - 1 + 11) % 11, LOW);
-
-      //   i++;
-      //   i %= 11;
-      // }
-
-      while(true){
-        for(int i = 0; i < 11; i++){
-          ledDriver.digitalWrite(logicalPTIndexToDriverPin[i], HIGH);
-          delay(200);
-        }
-        for(int i = 10; i >= 0; i --){
-          ledDriver.digitalWrite(logicalPTIndexToDriverPin[i], LOW);
-          delay(200);
-        }
-      }
-
-
-
   }
-
-  while(true){}
-
-
 
   sensorQueue = xQueueCreate(1, sizeof(SensorData));
   spiMutex = xSemaphoreCreateMutex();
