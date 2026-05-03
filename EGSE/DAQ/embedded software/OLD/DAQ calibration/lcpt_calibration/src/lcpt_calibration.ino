@@ -3,7 +3,7 @@
 #include <ADS1256.h>
 #include "ADS8688.h"
 #include <SPI.h>
-#include "lcpt_calibration.h"
+#include "new_lcpt_calibrator.h"
 // Load Cell (ADS1256) SPI Pins
 #define ADS1256_MISO 35
 #define ADS1256_SCLK 48
@@ -39,18 +39,14 @@ pressureADC.setInputRange(ADS8688_CS, 0x05);
 startCalibration();
 }
 
-float getLCValue(int channel) {
-  if (channel == 1) {
-    return loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3)) * 100000.0f;
-  }
-  return loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1)) * 100000.0f;
+float getLCValue() {
+return -loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1)) * 100000;
 }
 
 float getPTValue(int correctChannel) {
-  float voltages[8];
-  pressureADC.readAllChannels(ADS8688_CS, true, voltages);
-  if (correctChannel < 0 || correctChannel > 7) return 0.0f;
-  return voltages[correctChannel];
+float voltages[8];
+pressureADC.readAllChannels(ADS8688_CS, true, voltages);
+return voltages[7 - correctChannel];
 }
 
 void loop() {

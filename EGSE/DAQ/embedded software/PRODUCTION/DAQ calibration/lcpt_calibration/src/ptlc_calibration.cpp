@@ -1,213 +1,245 @@
-#include "new_lcpt_calibrator.h"
+#include "lcpt_calibration.h"
 #include <Arduino.h>
-#include <string>
+#include <vector>
+#include <stdlib.h>
+#include <math.h>
 
-float getLCValue();
-float getPTValue(int correctChannel);
+float getLCValue(int channel);
+float getPTValue(int channel);
 
-float m1 = 100;
-float b1 = 20;
-float m2 = 100;
-float b2 = 20;
+enum SensorType {
+  SENSOR_PT,
+  SENSOR_LC,
+};
 
-std::vector<float> xVals;
-std::vector<float> yVals;
-std::vector<float> yVals2;
-std::vector<float> yVals3;
-std::vector<float> yVals4;
-
-void computeBestFit(std::vector<float> yValsT) {
-  float sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-
-  for (int i = 0; i < xVals.size(); i++) {
-    sumX += xVals.at(i);
-    sumY += yValsT.at(i);
-    sumXY += xVals.at(i) * yValsT.at(i);
-    sumX2 += xVals.at(i) * xVals.at(i);
-  }
-
-  float n = xVals.size();
-
-  float m = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  float b = (sumY - m * sumX) / n;
-
-  Serial.println("\n--- Line of Best Fit ---");
-  Serial.print("m = ");
-  Serial.println(m, 6);
-  Serial.print("b = ");
-  Serial.println(b, 6);
-}
-
-void computeBestFit(float& m, float& b) {
-  float sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-
-  for (int i = 0; i < xVals.size(); i++) {
-    sumX += xVals.at(i);
-    sumY += yVals.at(i);
-    sumXY += xVals.at(i) * yVals.at(i);
-    sumX2 += xVals.at(i) * xVals.at(i);
-  }
-
-  float n = xVals.size();
-
-  float new_m = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  float new_b = (sumY - m * sumX) / n;
-
-  m = new_m;
-  b = new_b;
-}
-
-void startCalibration() {
-  Serial.begin(115200);
-  Serial.println("Starting Calibration:");
-  Serial.println("Enter Value(enter stop to end calibration): ");
+static String readLineTrimmed() {
   while (!Serial.available()) {
     delay(10);
   }
   String line = Serial.readStringUntil('\n');
-  while (line.length() == 0) {
-    Serial.println("Invalid Value. Re-enter Value: ");
-    line = Serial.readStringUntil('\n');
-    line.trim();
-  }
+  line.trim();
+  return line;
+}
+
+static bool parseFloatStrict(const String& s, float& out) {
+  char* endPtr = nullptr;
+  out = strtof(s.c_str(), &endPtr);
+  return endPtr != s.c_str() && *endPtr == '\0';
+}
+
+static int readIntInRange(const char* prompt, int minV, int maxV) {
   while (true) {
-    if (line == "voltage") {
-      Serial.println(getPTValue(0));
+    Serial.print(prompt);
+    String line = readLineTrimmed();
+    float maybeFloat = 0.0f;
+    if (!parseFloatStrict(line, maybeFloat)) {
+      Serial.println("Invalid number. Try again.");
+      continue;
     }
-    else if (line == "compute") {
-      computeBestFit(yVals);
-      // computeBestFit(yVals2);
-      // computeBestFit(yVals3);
-      // computeBestFit(yVals4);
-    } else if (line == "print") {
-      printTable(yVals);
-      // printTable(yVals2);
-      // printTable(yVals3);
-      // printTable(yVals4);
-    } else if (line == "0" || line.toFloat() > 0) {
-      float userInput = line.toFloat();
-      float dataInput1 = getPTValue(0);
-      float dataInput2 = getPTValue(1);
-      float dataInput3 = getPTValue(2);
-      float dataInput4 = getPTValue(3);
-      add(userInput, dataInput1, dataInput2, dataInput3, dataInput4);
-    } else if (line == "clear") {
-      clear();
-    } else {
-      Serial.println("Invalid command/input.");
+    int value = (int)maybeFloat;
+    if (value < minV || value > maxV || maybeFloat != (float)value) {
+      Serial.print("Enter an integer from ");
+      Serial.print(minV);
+      Serial.print(" to ");
+      Serial.println(maxV);
+      continue;
     }
-
-    Serial.println("Enter Next Value(enter stop to end calibration): ");
-    while (!Serial.available()) {
-      delay(10);
-    }
-    line = Serial.readStringUntil('\n');
-    line.trim();
-  }
-  Serial.print("Ended Calibration.");
-}
-
-void clear() {
-  while (!xVals.empty()) {
-    xVals.pop_back();
-    yVals.pop_back();
-    yVals2.pop_back();
-    yVals3.pop_back();
-    yVals4.pop_back();
+    return value;
   }
 }
 
-void removeLatest() {
-  xVals.pop_back();
-  yVals.pop_back();
-  yVals2.pop_back();
-  yVals3.pop_back();
-  yVals4.pop_back();
+static float readFloatPrompt(const char* prompt) {
+  while (true) {
+    Serial.print(prompt);
+    String line = readLineTrimmed();
+    float value = 0.0f;
+    if (parseFloatStrict(line, value)) {
+      return value;
+    }
+    Serial.println("Invalid number. Try again.");
+  }
 }
 
-bool remove(float xVal, std::vector<float> yValsT) {
-  int removeIndex = -1;
-  int lastIndex = xVals.size() - 1;
-  for (int i = 0; i < xVals.size(); i++) {
-    if (xVals.at(i) == xVal) {
-      removeIndex = i;
-      break;
-    }
+static void waitForEnter(const char* prompt) {
+  Serial.println(prompt);
+  readLineTrimmed();
+}
+
+static float readRawAverage(SensorType type, int channel, int samples = 30) {
+  float sum = 0.0f;
+  for (int i = 0; i < samples; i++) {
+    if (type == SENSOR_PT) sum += getPTValue(channel);
+    else sum += getLCValue(channel);
+    delay(10);
   }
-  if (removeIndex == -1) {
-    return false;
+  return sum / (float)samples;
+}
+
+static bool computeRawToEngineeringFit(const std::vector<float>& rawVals, const std::vector<float>& engVals, float& m, float& b) {
+  if (rawVals.size() != engVals.size() || rawVals.size() < 2) return false;
+
+  float sumRaw = 0.0f;
+  float sumEng = 0.0f;
+  float sumRawEng = 0.0f;
+  float sumRaw2 = 0.0f;
+  float n = (float)rawVals.size();
+
+  for (size_t i = 0; i < rawVals.size(); i++) {
+    float x = rawVals[i];
+    float y = engVals[i];
+    sumRaw += x;
+    sumEng += y;
+    sumRawEng += x * y;
+    sumRaw2 += x * x;
   }
-  float tempX = xVals.at(removeIndex);
-  float tempY = yVals.at(removeIndex);
-  float tempY2 = yVals2.at(removeIndex);
-  float tempY3 = yVals3.at(removeIndex);
-  float tempY4 = yVals4.at(removeIndex);
-  xVals.at(removeIndex) = xVals.at(lastIndex);
-  yVals.at(removeIndex) = yVals.at(lastIndex);
-  yVals2.at(removeIndex) = yVals2.at(lastIndex);
-  yVals3.at(removeIndex) = yVals3.at(lastIndex);
-  yVals4.at(removeIndex) = yVals4.at(lastIndex);
-  xVals.at(lastIndex) = tempX;
-  yVals.at(lastIndex) = tempY;
-  yVals2.at(lastIndex) = tempY2;
-  yVals3.at(lastIndex) = tempY3;
-  yVals4.at(lastIndex) = tempY4;
-  xVals.pop_back();
-  yVals.pop_back();
-  yVals2.pop_back();
-  yVals3.pop_back();
-  yVals4.pop_back();
+
+  float denom = (n * sumRaw2) - (sumRaw * sumRaw);
+  if (fabs(denom) < 1e-9f) return false;
+
+  m = (n * sumRawEng - sumRaw * sumEng) / denom;
+  b = (sumEng - m * sumRaw) / n;
   return true;
 }
 
-void add(float xVal, float yVal, float yVal2, float yVal3, float yVal4) {
-  xVals.push_back(xVal);
-  yVals.push_back(yVal);
-  yVals2.push_back(yVal2);
-  yVals3.push_back(yVal3);
-  yVals4.push_back(yVal4);
-}
+static void liveReadChannel(SensorType type, int channel) {
+  Serial.println();
+  Serial.print("Live raw read for ");
+  Serial.print(type == SENSOR_PT ? "PT" : "LC");
+  Serial.print(channel);
+  Serial.println(".");
+  Serial.println("Press ENTER to read one sample average, or type q then ENTER to stop.");
 
-int size() {
-  return xVals.size();
-}
-
-void sizePrint() {
-  Serial.println(xVals.size());
-}
-
-void printTable(std::vector<float> yValsT) {
-  Serial.println("X Value | Y Value");
-  for (int i = 0; i < xVals.size(); i++) {
-    Serial.print(xVals.at(i));
-    Serial.print("|");
-    Serial.println(yValsT.at(i));
+  while (true) {
+    Serial.print("> ");
+    String cmd = readLineTrimmed();
+    if (cmd == "q" || cmd == "Q") {
+      Serial.println("Leaving live read mode.");
+      return;
+    }
+    float raw = readRawAverage(type, channel);
+    Serial.print("Current raw average = ");
+    Serial.println(raw, 8);
   }
 }
 
-void sort() {
-  int lowest;
-  for (int i = 0; i < xVals.size() - 1; i++) {
-    lowest = i;
-    for (int j = i + 1; j < xVals.size(); j++) {
-      if (xVals.at(j) < xVals.at(lowest)) {
-        lowest = j;
-      }
+static void calibrateOneChannel(SensorType type, int channel) {
+  Serial.println();
+  Serial.print("=== Calibrating ");
+  Serial.print(type == SENSOR_PT ? "PT" : "LC");
+  Serial.print(channel);
+  Serial.println(" ===");
+
+  int points = readIntInRange("How many calibration points? (min 2): ", 2, 50);
+  std::vector<float> engVals;
+  std::vector<float> rawVals;
+  engVals.reserve(points);
+  rawVals.reserve(points);
+
+  for (int i = 0; i < points; i++) {
+    Serial.println();
+    Serial.print("Point ");
+    Serial.print(i + 1);
+    Serial.print(" of ");
+    Serial.println(points);
+
+    float known = readFloatPrompt("Enter known value (engineering units): ");
+    waitForEnter("Apply this known value physically, let it settle, then press Enter.");
+
+    float raw = readRawAverage(type, channel);
+    engVals.push_back(known);
+    rawVals.push_back(raw);
+
+    Serial.print("Captured raw average = ");
+    Serial.println(raw, 8);
+  }
+
+  float m = 0.0f;
+  float b = 0.0f;
+  if (!computeRawToEngineeringFit(rawVals, engVals, m, b)) {
+    Serial.println("Fit failed. Ensure you used at least 2 distinct raw points.");
+    return;
+  }
+
+  Serial.println();
+  Serial.println("Result (DIRECT FORM): calibrated = raw * m + b");
+  Serial.print("m = ");
+  Serial.println(m, 8);
+  Serial.print("b = ");
+  Serial.println(b, 8);
+
+  Serial.println("Copy this into DAQESPUSB.ino:");
+  if (type == SENSOR_PT) {
+    Serial.print("PT_CALIBRATION[");
+    Serial.print(channel);
+    Serial.print("] = {");
+    Serial.print(m, 8);
+    Serial.print("f, ");
+    Serial.print(b, 8);
+    Serial.println("f};");
+  } else {
+    Serial.print("LC_CALIBRATION[");
+    Serial.print(channel);
+    Serial.print("] = {");
+    Serial.print(m, 8);
+    Serial.print("f, ");
+    Serial.print(b, 8);
+    Serial.println("f};");
+  }
+}
+
+void startCalibration() {
+  Serial.println();
+  Serial.println("CALIBRATION PIPELINE");
+  Serial.println("This computes DIRECT coefficients: calibrated = raw * m + b");
+
+  while (true) {
+    Serial.println();
+    Serial.println("Choose mode:");
+    Serial.println("  1 = Calibrate PT");
+    Serial.println("  2 = Calibrate LC");
+    Serial.println("  3 = Live raw read (no storage)");
+    Serial.println("  q = quit");
+    Serial.print("> ");
+
+    String mode = readLineTrimmed();
+    if (mode == "q" || mode == "Q") {
+      Serial.println("Calibration ended.");
+      return;
     }
-    float tempX = xVals.at(lowest);
-    float tempY = yVals.at(lowest);
-    float tempY2 = yVals2.at(lowest);
-    float tempY3 = yVals3.at(lowest);
-    float tempY4 = yVals4.at(lowest);
-    xVals.at(lowest) = xVals.at(i);
-    yVals.at(lowest) = yVals.at(i);
-    yVals2.at(lowest) = yVals2.at(i);
-    yVals3.at(lowest) = yVals3.at(i);
-    yVals4.at(lowest) = yVals4.at(i);
-    xVals.at(i) = tempX;
-    yVals.at(i) = tempY;
-    yVals2.at(i) = tempY2;
-    yVals3.at(i) = tempY3;
-    yVals4.at(i) = tempY4;
+
+    SensorType type;
+    int maxChannels;
+    if (mode == "1") {
+      type = SENSOR_PT;
+      maxChannels = 8;
+    } else if (mode == "2") {
+      type = SENSOR_LC;
+      maxChannels = 2;
+    } else if (mode == "3") {
+      int typeChoice = readIntInRange("Read which sensor type? (1=PT, 2=LC): ", 1, 2);
+      if (typeChoice == 1) {
+        type = SENSOR_PT;
+        maxChannels = 8;
+      } else {
+        type = SENSOR_LC;
+        maxChannels = 2;
+      }
+      int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
+      liveReadChannel(type, channel);
+      continue;
+    } else {
+      Serial.println("Invalid selection.");
+      continue;
+    }
+
+    int count = readIntInRange("How many channels do you want to calibrate now? ", 1, maxChannels);
+
+    for (int i = 0; i < count; i++) {
+      int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
+      calibrateOneChannel(type, channel);
+    }
+
+    Serial.println();
+    Serial.println("Batch complete.");
   }
 }

@@ -73,8 +73,8 @@ unsigned long last_mqtt_attempt = 0;
 static unsigned long lastMqttLoop = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
-const unsigned long SAMPLE_INTERVAL = 1;
-const unsigned long PUBLISH_INTERVAL = 4;
+const unsigned long SAMPLE_INTERVAL = 50;
+const unsigned long PUBLISH_INTERVAL = 100;
 
 const char *ssid = "ILAY";
 const char *password = "lebronpookie123";
@@ -197,12 +197,12 @@ void samplingTask(void *pvParameters)
 
       bool drdy0 = waitForDRDY();
       float lcVoltage0 = drdy0
-        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))*100000.0f
+        ? 1//loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))*100000.0f
         : 0.0f;
 
       bool drdy1 = waitForDRDY();
       float lcVoltage1 = drdy1
-        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))*100000.0f
+        ? 1//loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))*100000.0f
         : 0.0f;
 
       validSample = drdy0 && drdy1;
@@ -238,23 +238,21 @@ void samplingTask(void *pvParameters)
   }
 }
 
-void publishTask(void *pvParameters)
+void mqttTask(void *pvParameters)
 {
-  Serial.println("PUBLISH TASK");
   char finalStr[300];
   SensorData localCopy;
 
   while (true)
   {
-    if (!client.connected())
-    {
-      vTaskDelay(pdMS_TO_TICKS(100));
-      continue;
-    }
+    // wifi reconnect logic...
+    connect_client();
+    client.loop();
 
-    if (xQueuePeek(sensorQueue, &localCopy, 0) == pdTRUE)
-    {
-      snprintf(
+    // publish here, only task touching client.*
+    if (client.connected()) {
+      if (xQueueReceive(sensorQueue, &localCopy, 0) == pdTRUE) {
+        snprintf(
           finalStr,
           sizeof(finalStr),
           "rocket_data pt0=%4.2f,pt1=%4.2f,pt2=%4.2f,pt3=%4.2f,pt4=%4.2f,pt5=%4.2f,pt6=%4.2f,pt7=%4.2f,lc0=%4.10f,lc1=%4.10f,uptime_ms=%lu",
@@ -269,29 +267,11 @@ void publishTask(void *pvParameters)
           localCopy.lc[0],
           localCopy.lc[1],
           localCopy.timestamp);
-
-      client.publish(DAQ_TOPIC, finalStr);
-
-      Serial.println(finalStr);
+        client.publish(DAQ_TOPIC, finalStr);
+        Serial.println("Published: " + String(finalStr));
+      }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(PUBLISH_INTERVAL));
-  }
-}
-
-void mqttTask(void *pvParameters)
-{
-  while (true)
-  {
-    if (WiFi.status() != WL_CONNECTED)
-    {
-      WiFi.begin(ssid, password);
-      vTaskDelay(pdMS_TO_TICKS(500));
-      continue;
-    }
-
-    connect_client();
-    client.loop();
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
@@ -318,23 +298,40 @@ void setup()
 
 
     for(int i = LED_RANGE_LOW; i <= LED_RANGE_HIGH; i++){
+      Serial.println("Setting pin " + String(i) + " to OUTPUT and LOW");
       ledDriver.pinMode(i, OUTPUT);
       ledDriver.digitalWrite(i, LOW);
     }
   }
 
+  Serial.println("After loop, Initializing SPI and ADCs");
   sensorQueue = xQueueCreate(1, sizeof(SensorData));
   spiMutex = xSemaphoreCreateMutex();
-
+  Serial.println("Created Queue and Mutex");
+  pinMode(SCLK, OUTPUT);
+  pinMode(MISO, INPUT);
+  pinMode(MOSI, OUTPUT);
+  Serial.println("Set SPI Pins");
   sharedSPI.begin(SCLK, MISO, MOSI, -1);
-  if (xSemaphoreTake(spiMutex, portMAX_DELAY) == pdTRUE)
+  Serial.println("Initialized SPI");
+  if (xSemaphoreTake(spiMutex, 2000) == pdTRUE)
   {
-    loadCellADC.InitializeADC();
-    loadCellADC.setPGA(PGA_64);
-    loadCellADC.setDRATE(DRATE_1000SPS);
+    Serial.println("Took SPI mutex");
+   // loadCellADC.InitializeADC();
+    Serial.println("Initialized Load Cell ADC");
+    //loadCellADC.setPGA(PGA_64);
+    Serial.println("Set Load Cell ADC PGA");
+    //loadCellADC.setDRATE(DRATE_1000SPS);
+    Serial.println("Set Load Cell ADC Data Rate");
     pressureADC.begin(MISO, SCLK, MOSI, ADS8688_CS, 4.1, 0x05);
+    Serial.println("Initialized Pressure ADC");
     pressureADC.setInputRange(ADS8688_CS, 0x05);
+    Serial.println("Set Pressure ADC Input Range");
     xSemaphoreGive(spiMutex);
+  }
+  else
+  {
+    Serial.println("Failed to take SPI mutex during setup");
   }
 
   setup_wifi();
@@ -342,7 +339,6 @@ void setup()
   client.setKeepAlive(60);
 
   xTaskCreatePinnedToCore(samplingTask, "Sampling Task", 4096, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(publishTask, "Publish Task", 6144, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(mqttTask, "MQTT Task", 4096, NULL, 1, NULL, 0);
 
   Serial.println("Setup complete");
