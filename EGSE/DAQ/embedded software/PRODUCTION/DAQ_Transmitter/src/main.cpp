@@ -20,44 +20,26 @@
 // PT SPI Pins
 #define ADS8688_CS 36
 
-// RS484 Pins -- Not Used Yet
-#define RO_PIN 40
-#define DI_PIN 39
-#define DE_RE_PIN 41
-
-// LED Drive I2C Pins
-#define SDA 38
-#define SCL 39
-
-#define LED_RANGE_LOW 0
-#define LED_RANGE_HIGH 10
-
-int logicalPTIndexToDriverPin[8] = {
+int logicalToLibraryPtIndex[8] = {
+  // 3,
+  // 2,
+  // 1,
+  // 0,
+  // 7,
+  // 6,
+  // 5,
+  // 4
   4,
   5,
-  0,
   6,
   7,
-  3,
-  2,
-  1
-};
-
-int logicalToLibraryPtIndex[8] = {
-  3,
-  2,
+  0,
   1,
-  0,
-  7,
-  6,
-  5,
-  4
+  2,
+  3
 };
 
 
-
-Adafruit_MCP23X17 ledDriver;
-bool ptCheck[8];
 
 struct SensorData
 {
@@ -73,8 +55,8 @@ unsigned long last_mqtt_attempt = 0;
 static unsigned long lastMqttLoop = 0;
 const unsigned long MQTT_RETRY_INTERVAL = 5000;
 
-const unsigned long SAMPLE_INTERVAL = 50;
-const unsigned long PUBLISH_INTERVAL = 100;
+const unsigned long SAMPLE_INTERVAL = 200;
+const unsigned long PUBLISH_INTERVAL = 200;
 
 const char *ssid = "ILAY";
 const char *password = "lebronpookie123";
@@ -89,21 +71,11 @@ ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
 ADS8688 pressureADC;
 
 
-float calibrationA1 = -1.722651;
-float calibrationB1 = 11.209444;
-float calibrationA2 = -0.260906;
-float calibrationB2 = -6.138861;
-int hardCodeConstant1 = 20; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
-float convertToWeightLC1(float voltage)
-{
-  return (voltage-calibrationB1)/calibrationA1 + hardCodeConstant1;
-}
+float calibrationA1 = -315692.6875;
+float calibrationB1 = 66.165405 + 11;
+float calibrationA2 = -48867.5625;
+float calibrationB2 = 2.676071 + 35;
 
-int hardCodeConstant2 = 52; //constant is hardcoded value to account for difference in load cell mounting (should know m is same)
-float convertToWeightLC2(float voltage)
-{
-  return (voltage-calibrationB2)/calibrationA2 + hardCodeConstant2;
-}
 
 void setup_wifi()
 {
@@ -150,13 +122,13 @@ void connect_client()
 
 float getCalibratedValue(float m, float b, float raw)
 {
-  return (raw - b) / m;
+  return raw * m + b;
 }
-// float mValues[8] = {2.59713, 8.187604, 0.036137, 8.142941, 0, 8.218279, 8.126287, 5.134613};
-// float bValues[8] = {1005.1352, 1002.913757, 1350.183472, 1035.41272, 0, 999.9568237, 968.913, 1067.228};
+float mValues[8] = {0.123015, 0.123638, 0.123036, 0.376017, 0.198563, 0.122571, 0.123015, 0.123015};
+float bValues[8] = {-129.502991, -129.675354, -122.230255, -346.989288, -210.341034, -130.974503, -129.502991, -129.502991};
 
-float mValues[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-float bValues[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+// float mValues[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+// float bValues[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 bool waitForDRDY(uint32_t timeout_us = 2000)
 {
@@ -197,20 +169,20 @@ void samplingTask(void *pvParameters)
 
       bool drdy0 = waitForDRDY();
       float lcVoltage0 = drdy0
-        ? 1//loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))*100000.0f
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1))
         : 0.0f;
 
       bool drdy1 = waitForDRDY();
       float lcVoltage1 = drdy1
-        ? 1//loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))*100000.0f
+        ? loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3))
         : 0.0f;
 
       validSample = drdy0 && drdy1;
 
       if (validSample)
       {
-        lcCalibrated0 = convertToWeightLC1(lcVoltage0);
-        lcCalibrated1 = convertToWeightLC2(lcVoltage1);
+        lcCalibrated0 = getCalibratedValue(calibrationA1, calibrationB1, lcVoltage0);
+        lcCalibrated1 = getCalibratedValue(calibrationA2, calibrationB2, lcVoltage1);
       }
 
       xSemaphoreGive(spiMutex);
@@ -238,21 +210,23 @@ void samplingTask(void *pvParameters)
   }
 }
 
-void mqttTask(void *pvParameters)
+void publishTask(void *pvParameters)
 {
+  Serial.println("PUBLISH TASK");
   char finalStr[300];
   SensorData localCopy;
 
   while (true)
   {
-    // wifi reconnect logic...
-    connect_client();
-    client.loop();
+    if (!client.connected())
+    {
+      vTaskDelay(pdMS_TO_TICKS(100));
+      continue;
+    }
 
-    // publish here, only task touching client.*
-    if (client.connected()) {
-      if (xQueueReceive(sensorQueue, &localCopy, 0) == pdTRUE) {
-        snprintf(
+    if (xQueuePeek(sensorQueue, &localCopy, 0) == pdTRUE)
+    {
+      snprintf(
           finalStr,
           sizeof(finalStr),
           "rocket_data pt0=%4.2f,pt1=%4.2f,pt2=%4.2f,pt3=%4.2f,pt4=%4.2f,pt5=%4.2f,pt6=%4.2f,pt7=%4.2f,lc0=%4.10f,lc1=%4.10f,uptime_ms=%lu",
@@ -267,11 +241,29 @@ void mqttTask(void *pvParameters)
           localCopy.lc[0],
           localCopy.lc[1],
           localCopy.timestamp);
-        client.publish(DAQ_TOPIC, finalStr);
-        Serial.println("Published: " + String(finalStr));
-      }
+
+      client.publish(DAQ_TOPIC, finalStr);
+
+      Serial.println(finalStr);
     }
 
+    vTaskDelay(pdMS_TO_TICKS(PUBLISH_INTERVAL));
+  }
+}
+
+void mqttTask(void *pvParameters)
+{
+  while (true)
+  {
+    if (WiFi.status() != WL_CONNECTED)
+    {
+      WiFi.begin(ssid, password);
+      vTaskDelay(pdMS_TO_TICKS(500));
+      continue;
+    }
+
+    connect_client();
+    client.loop();
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
@@ -279,59 +271,20 @@ void mqttTask(void *pvParameters)
 void setup()
 {
   Serial.begin(115200);
-  while (!Serial)
-    delay(10);
   delay(2000);
 
-  //RS Pin Setup
-  pinMode(DE_RE_PIN, OUTPUT);
-  digitalWrite(DE_RE_PIN, HIGH);
-
-
-  //LED Driver Init
-  Wire.begin(SDA, SCL); //hardcoded to pins 38, 39 --> SDA, SCL pins
-
-  if (!ledDriver.begin_I2C(0x20, &Wire)){
-    Serial.println("LED FAILED");
-  }else {
-    Serial.println("LED SUCCESS");
-
-
-    for(int i = LED_RANGE_LOW; i <= LED_RANGE_HIGH; i++){
-      Serial.println("Setting pin " + String(i) + " to OUTPUT and LOW");
-      ledDriver.pinMode(i, OUTPUT);
-      ledDriver.digitalWrite(i, LOW);
-    }
-  }
-
-  Serial.println("After loop, Initializing SPI and ADCs");
   sensorQueue = xQueueCreate(1, sizeof(SensorData));
   spiMutex = xSemaphoreCreateMutex();
-  Serial.println("Created Queue and Mutex");
-  pinMode(SCLK, OUTPUT);
-  pinMode(MISO, INPUT);
-  pinMode(MOSI, OUTPUT);
-  Serial.println("Set SPI Pins");
+
   sharedSPI.begin(SCLK, MISO, MOSI, -1);
-  Serial.println("Initialized SPI");
-  if (xSemaphoreTake(spiMutex, 2000) == pdTRUE)
+  if (xSemaphoreTake(spiMutex, portMAX_DELAY) == pdTRUE)
   {
-    Serial.println("Took SPI mutex");
-   // loadCellADC.InitializeADC();
-    Serial.println("Initialized Load Cell ADC");
-    //loadCellADC.setPGA(PGA_64);
-    Serial.println("Set Load Cell ADC PGA");
-    //loadCellADC.setDRATE(DRATE_1000SPS);
-    Serial.println("Set Load Cell ADC Data Rate");
+    loadCellADC.InitializeADC();
+    loadCellADC.setPGA(PGA_64);
+    loadCellADC.setDRATE(DRATE_1000SPS);
     pressureADC.begin(MISO, SCLK, MOSI, ADS8688_CS, 4.1, 0x05);
-    Serial.println("Initialized Pressure ADC");
     pressureADC.setInputRange(ADS8688_CS, 0x05);
-    Serial.println("Set Pressure ADC Input Range");
     xSemaphoreGive(spiMutex);
-  }
-  else
-  {
-    Serial.println("Failed to take SPI mutex during setup");
   }
 
   setup_wifi();
@@ -339,6 +292,7 @@ void setup()
   client.setKeepAlive(60);
 
   xTaskCreatePinnedToCore(samplingTask, "Sampling Task", 4096, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(publishTask, "Publish Task", 6144, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(mqttTask, "MQTT Task", 4096, NULL, 1, NULL, 0);
 
   Serial.println("Setup complete");
