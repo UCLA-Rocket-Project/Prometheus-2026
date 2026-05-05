@@ -8,12 +8,12 @@ BROKER = "192.168.0.100"
 TOPIC = "DAQ_transmitter/receiver"
 TELEGRAF_URL = "http://localhost:8094/telegraf"
 
-today_date = datetime.now().strftime("%Y-%m-%d")
+today_date = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 file_path = f"rocket_data_{today_date}.csv"
 
 f = open(file_path, "w", newline="")
 writer = csv.writer(f)
-writer.writerow(['pt0','pt1','pt2','pt3','lc0','uptime','timestamp'])
+writer.writerow(['pt0','pt1','pt2','pt3','pt4','pt5','pt6','pt7','lc0','lc1','uptime','timestamp'])
 
 http_session = requests.Session()
 
@@ -23,29 +23,34 @@ def on_message(client, userdata, msg):
     if not raw_line.startswith("rocket_data"):
         return
 
-    #send to Telegraf
+    # send to Telegraf
     try:
         http_session.post(TELEGRAF_URL, data=raw_line, timeout=0.02)
     except:
         pass
 
-    #parse
+    # parse
     try:
         _, data_part = raw_line.split(" ", 1)
 
         fields = {}
         for item in data_part.split(","):
             if "=" in item:
-                k,v = item.split("=",1)
+                k, v = item.split("=", 1)
                 fields[k] = v
 
         writer.writerow([
-            fields.get('pt0',''),
-            fields.get('pt1',''),
-            fields.get('pt2',''),
-            fields.get('pt3',''),
-            fields.get('lc0',''),
-            fields.get('uptime_ms',''),
+            fields.get('pt0', ''),
+            fields.get('pt1', ''),
+            fields.get('pt2', ''),
+            fields.get('pt3', ''),
+            fields.get('pt4', ''),
+            fields.get('pt5', ''),
+            fields.get('pt6', ''),
+            fields.get('pt7', ''),
+            fields.get('lc0', ''),
+            fields.get('lc1', ''),
+            fields.get('uptime_ms', ''),
             time.time()
         ])
         f.flush()
