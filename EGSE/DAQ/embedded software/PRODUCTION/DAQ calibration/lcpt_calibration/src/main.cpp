@@ -14,6 +14,18 @@
 #define ADS8688_CS 36
 // LED indicator pin
 #define LED 38
+
+static const int logicalToLibraryPtIndex[8] = {
+  4,
+  5,
+  6,
+  7,
+  0,
+  1,
+  2,
+  3
+};
+
 SPIClass sharedSPI(FSPI);
 // ADS1256 instance
 ADS1256 loadCellADC(&sharedSPI, ADS1256_DRDY, ADS1256_CS, 2.5);
@@ -50,7 +62,7 @@ float getPTValue(int correctChannel) {
   float voltages[8];
   pressureADC.readAllChannels(ADS8688_CS, true, voltages);
   if (correctChannel < 0 || correctChannel > 7) return 0.0f;
-  return voltages[correctChannel];
+  return voltages[logicalToLibraryPtIndex[correctChannel]];
 }
 
 void loop() {
