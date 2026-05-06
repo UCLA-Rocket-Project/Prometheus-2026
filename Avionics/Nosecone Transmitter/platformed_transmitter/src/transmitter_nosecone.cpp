@@ -44,17 +44,13 @@
 #define ALT_CS1 39
 #define ALT_CS2 38
 
-
-
 // =======================
 // BUZZER INIT
 // =======================
 int buzzerPin = 15;
 
-const int buzzerChannel = 0; //conforming to older style buzzer API
-
-#define NOTE_C4 262
-#define NOTE_C5 523
+const int buzzerChannel = 0; // conforming to older style buzzer API
+const int resolution = 8;
 
 // ============================================================
 // CONFIG
@@ -64,20 +60,20 @@ const int buzzerChannel = 0; //conforming to older style buzzer API
 #define RADIO_PACKET_MAX 220
 
 // IMPORTANT: make these match receiver exactly
-#define LORA_FREQ              915E6
-#define LORA_SPREADING_FACTOR  8
-#define LORA_SIGNAL_BANDWIDTH  250E3
-#define LORA_CODING_RATE       5
-#define LORA_TX_POWER          20
+#define LORA_FREQ 915E6
+#define LORA_SPREADING_FACTOR 8
+#define LORA_SIGNAL_BANDWIDTH 250E3
+#define LORA_CODING_RATE 5
+#define LORA_TX_POWER 20
 
-#define SD_CS 8  // SD card CS pin
+#define SD_CS 8 // SD card CS pin
 
 // MS5607 commands
 static const uint8_t MS5607_CMD_RESET = 0x1E;
 static const uint8_t MS5607_CMD_ADC_READ = 0x00;
 static const uint8_t MS5607_CMD_PROM_READ_BASE = 0xA0;
-static const uint8_t MS5607_CMD_CONV_D1 = 0x48;  // OSR 4096
-static const uint8_t MS5607_CMD_CONV_D2 = 0x58;  // OSR 4096
+static const uint8_t MS5607_CMD_CONV_D1 = 0x48; // OSR 4096
+static const uint8_t MS5607_CMD_CONV_D2 = 0x58; // OSR 4096
 
 // ============================================================
 // GLOBALS
@@ -94,16 +90,17 @@ bool imuReady = false;
 bool radioReady = false;
 bool alt1Ready = false;
 bool alt2Ready = false;
-
+int ALT_ELEVATION = 0;
 String logFilename;
 bool sdReady = false;
 
-double ALTITUDE_OFFSET = -580.0; //MOJAVE DESERT SEA LEVEL ALTITUDE OFFSET
+double ALTITUDE_OFFSET = -580.0; // MOJAVE DESERT SEA LEVEL ALTITUDE OFFSET
 
 // ============================================================
 // DATA STRUCTS
 // ============================================================
-struct GpsData {
+struct GpsData
+{
   bool valid;
   int32_t lat;
   int32_t lon;
@@ -113,7 +110,8 @@ struct GpsData {
   uint8_t sats;
 };
 
-struct ImuData {
+struct ImuData
+{
   bool valid;
   float ax;
   float ay;
@@ -124,14 +122,16 @@ struct ImuData {
   float tempC;
 };
 
-struct AltData {
+struct AltData
+{
   bool valid;
   float pressure_mbar;
   float tempC;
   float altitude_m;
 };
 
-struct Telemetry {
+struct Telemetry
+{
   uint32_t ms;
   GpsData gps;
   ImuData imu;
@@ -142,13 +142,17 @@ struct Telemetry {
 // ============================================================
 // MS5607 DRIVER
 // ============================================================
-class MS5607 {
+class MS5607
+{
 public:
-  MS5607() : spi(nullptr), cs(-1), initialized(false) {
-    for (int i = 0; i < 8; i++) C[i] = 0;
+  MS5607() : spi(nullptr), cs(-1), initialized(false)
+  {
+    for (int i = 0; i < 8; i++)
+      C[i] = 0;
   }
 
-  bool begin(SPIClass *bus, int csPin) {
+  bool begin(SPIClass *bus, int csPin)
+  {
     spi = bus;
     cs = csPin;
 
@@ -158,11 +162,13 @@ public:
     reset();
     delay(10);
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
       C[i] = readPROM(i);
     }
 
-    if (C[1] == 0 || C[1] == 0xFFFF || C[2] == 0 || C[2] == 0xFFFF) {
+    if (C[1] == 0 || C[1] == 0xFFFF || C[2] == 0 || C[2] == 0xFFFF)
+    {
       initialized = false;
       return false;
     }
@@ -171,18 +177,21 @@ public:
     return true;
   }
 
-  bool read(AltData &out) {
+  bool read(AltData &out)
+  {
     out.valid = false;
     out.pressure_mbar = NAN;
     out.tempC = NAN;
     out.altitude_m = NAN;
 
-    if (!initialized) return false;
+    if (!initialized)
+      return false;
 
     uint32_t D1 = convertAndRead(MS5607_CMD_CONV_D1);
     uint32_t D2 = convertAndRead(MS5607_CMD_CONV_D2);
 
-    if (D1 == 0 || D2 == 0) {
+    if (D1 == 0 || D2 == 0)
+    {
       return false;
     }
 
@@ -195,12 +204,14 @@ public:
     int64_t OFF2 = 0;
     int64_t SENS2 = 0;
 
-    if (TEMP < 2000) {
+    if (TEMP < 2000)
+    {
       T2 = ((int64_t)dT * dT) >> 31;
       OFF2 = 5LL * (TEMP - 2000LL) * (TEMP - 2000LL) / 2LL;
       SENS2 = 5LL * (TEMP - 2000LL) * (TEMP - 2000LL) / 4LL;
 
-      if (TEMP < -1500) {
+      if (TEMP < -1500)
+      {
         OFF2 += 7LL * (TEMP + 1500LL) * (TEMP + 1500LL);
         SENS2 += 11LL * (TEMP + 1500LL) * (TEMP + 1500LL) / 2LL;
       }
@@ -215,9 +226,12 @@ public:
     out.tempC = TEMP / 100.0f;
     out.pressure_mbar = P / 100.0f;
 
-    if (out.pressure_mbar > 0.1f) {
+    if (out.pressure_mbar > 0.1f)
+    {
       out.altitude_m = 44330.0f * (1.0f - pow(out.pressure_mbar / SEA_LEVEL_PRESSURE_HPA, 0.19029495718f));
-    } else {
+    }
+    else
+    {
       out.altitude_m = NAN;
     }
 
@@ -231,23 +245,27 @@ private:
   bool initialized;
   uint16_t C[8];
 
-  void beginTx() {
+  void beginTx()
+  {
     spi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
     digitalWrite(cs, LOW);
   }
 
-  void endTx() {
+  void endTx()
+  {
     digitalWrite(cs, HIGH);
     spi->endTransaction();
   }
 
-  void reset() {
+  void reset()
+  {
     beginTx();
     spi->transfer(MS5607_CMD_RESET);
     endTx();
   }
 
-  uint16_t readPROM(uint8_t index) {
+  uint16_t readPROM(uint8_t index)
+  {
     uint8_t cmd = MS5607_CMD_PROM_READ_BASE + (index * 2);
     beginTx();
     spi->transfer(cmd);
@@ -257,7 +275,8 @@ private:
     return ((uint16_t)msb << 8) | lsb;
   }
 
-  uint32_t convertAndRead(uint8_t cmd) {
+  uint32_t convertAndRead(uint8_t cmd)
+  {
     beginTx();
     spi->transfer(cmd);
     endTx();
@@ -281,60 +300,80 @@ MS5607 altimeter2;
 // ============================================================
 // RADIO CONTROL
 // ============================================================
-#define LORA_CS   RADIO_CS
-#define LORA_RST  RST_RADIO
+#define LORA_CS RADIO_CS
+#define LORA_RST RST_RADIO
 #define LORA_DIO0 RADIO_DIO1
 
-void setTX() {
+void setTX()
+{
   digitalWrite(RXEN, LOW);
   digitalWrite(TXEN, HIGH);
   delayMicroseconds(100);
 }
 
-void setRX() {
+void setRX()
+{
   digitalWrite(TXEN, LOW);
   digitalWrite(RXEN, HIGH);
   delayMicroseconds(100);
 }
 
+void beep(int freq, int durationMs)
+{
+  ledcWriteTone(buzzerChannel, freq);
+
+  // MAX DUTY CYCLE = louder
+  ledcWrite(buzzerChannel, 255);
+
+  delay(durationMs);
+
+  ledcWriteTone(buzzerChannel, 0);
+  ledcWrite(buzzerChannel, 0);
+
+  delay(100);
+}
+
 // ============================================================
 // INIT
 // ============================================================
-bool initGPS() {
+bool initGPS()
+{
   gnssWire.begin(GPS_SDA, GPS_SCL);
 
-  for (int i = 0; i < 10; i++) {
-    if (gnss.begin(gnssWire, GNSS_ADDRESS)) {
+  for (int i = 0; i < 10; i++)
+  {
+    if (gnss.begin(gnssWire, GNSS_ADDRESS))
+    {
       gnss.setI2COutput(COM_TYPE_UBX);
-      ledcWriteTone(buzzerChannel, NOTE_C5); //used to be buzzerPin
-      delay(1000);
+
       Serial.println("[GPS] OK");
-      ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
-      delay(2000);
+
       return true;
     }
     delay(300);
   }
 
-  ledcWriteTone(buzzerChannel, NOTE_C4); //used to be buzzerPin
-  delay(1000);
   Serial.println("[GPS] FAIL");
-  ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
+  beep(4000, 150);
   delay(2000);
 
   return false;
 }
 
-bool initIMU() {
+bool initIMU()
+{
   pinMode(IMU_CS, OUTPUT);
   digitalWrite(IMU_CS, HIGH);
 
-  if (!imu.begin_SPI(IMU_CS, &spiB)) {
-    ledcWriteTone(buzzerChannel, NOTE_C4); //used to be buzzerPin
-    delay(1000);
+  if (!imu.begin_SPI(IMU_CS, &spiB))
+  {
+
     Serial.println("[IMU] FAIL");
-    ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
     delay(2000);
+
     return false;
   }
 
@@ -343,21 +382,28 @@ bool initIMU() {
   imu.setAccelDataRate(LSM6DS_RATE_104_HZ);
   imu.setGyroDataRate(LSM6DS_RATE_104_HZ);
 
-  ledcWriteTone(buzzerChannel, NOTE_C5); //used to be buzzerPin
-  delay(1000);
-  ledcWriteTone(buzzerChannel, NOTE_C5); //used to be buzzerPin
   Serial.println("[IMU] OK");
-  delay(1000);
-  ledcWriteTone(buzzerChannel, 0); //used to be buzzerPin
 
   return true;
 }
 
-bool initAltimeters() {
+bool initAltimeters()
+{
   alt1Ready = altimeter1.begin(&spiB, ALT_CS1);
   alt2Ready = altimeter2.begin(&spiB, ALT_CS2);
 
   Serial.print("[ALT1] ");
+  if (!alt1Ready && !alt2Ready)
+  {
+    Serial.println("FAIL");
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(2000);
+  }
+
   Serial.println(alt1Ready ? "OK" : "FAIL");
   Serial.print("[ALT2] ");
   Serial.println(alt2Ready ? "OK" : "FAIL");
@@ -365,7 +411,8 @@ bool initAltimeters() {
   return alt1Ready || alt2Ready;
 }
 
-bool initRadio() {
+bool initRadio()
+{
   pinMode(TXEN, OUTPUT);
   pinMode(RXEN, OUTPUT);
   setRX();
@@ -377,8 +424,18 @@ bool initRadio() {
   LoRa.setSPI(spiA);
   LoRa.setPins(LORA_CS, LORA_RST, LORA_DIO0);
 
-  if (!LoRa.begin(LORA_FREQ)) {
+  if (!LoRa.begin(LORA_FREQ))
+  {
     Serial.println("[LORA] FAIL");
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(2000);
+
     return false;
   }
 
@@ -391,10 +448,20 @@ bool initRadio() {
   return true;
 }
 
+// void beep(int freq, int durationMs)
+// {
+//   ledcWriteTone(buzzerChannel, freq);
+//   delay(durationMs);
+
+//   ledcWriteTone(buzzerChannel, 0);
+//   delay(200);
+// }
+
 // ============================================================
 // READ FUNCTIONS
 // ============================================================
-void readGPS(GpsData &g) {
+void readGPS(GpsData &g)
+{
   g.valid = false;
   g.lat = 0;
   g.lon = 0;
@@ -403,8 +470,10 @@ void readGPS(GpsData &g) {
   g.fixType = 0;
   g.sats = 0;
 
-  if (!gpsReady) return;
-  if (!gnss.getPVT()) return;
+  if (!gpsReady)
+    return;
+  if (!gnss.getPVT())
+    return;
 
   g.lat = gnss.getLatitude();
   g.lon = gnss.getLongitude();
@@ -415,13 +484,15 @@ void readGPS(GpsData &g) {
   g.valid = true;
 }
 
-void readIMU(ImuData &i) {
+void readIMU(ImuData &i)
+{
   i.valid = false;
   i.ax = i.ay = i.az = NAN;
   i.gx = i.gy = i.gz = NAN;
   i.tempC = NAN;
 
-  if (!imuReady) return;
+  if (!imuReady)
+    return;
 
   sensors_event_t accel, gyro, temp;
   imu.getEvent(&accel, &gyro, &temp);
@@ -438,15 +509,19 @@ void readIMU(ImuData &i) {
   i.valid = true;
 }
 
-void readAltimeters(AltData &a1, AltData &a2) {
+void readAltimeters(AltData &a1, AltData &a2)
+{
   a1.valid = false;
   a2.valid = false;
 
-  if (alt1Ready) altimeter1.read(a1);
-  if (alt2Ready) altimeter2.read(a2);
+  if (alt1Ready)
+    altimeter1.read(a1);
+  if (alt2Ready)
+    altimeter2.read(a2);
 }
 
-Telemetry readTelemetry() {
+Telemetry readTelemetry()
+{
   Telemetry t;
   t.ms = millis();
 
@@ -460,7 +535,8 @@ Telemetry readTelemetry() {
 // ============================================================
 // DEBUG PRINT
 // ============================================================
-void printTelemetry(const Telemetry &t) {
+void printTelemetry(const Telemetry &t)
+{
   Serial.print("T=");
   Serial.print(t.ms);
 
@@ -481,57 +557,64 @@ void printTelemetry(const Telemetry &t) {
   Serial.print(t.imu.ay, 3);
   Serial.print(" az=");
   Serial.print(t.imu.az, 3);
-
-  Serial.print(" ALT1[");
-  Serial.print(t.alt1.valid);
-  Serial.print("] ");
-  Serial.print(t.alt1.altitude_m + ALTITUDE_OFFSET, 2);
-
-  Serial.print(" ALT2[");
-  Serial.print(t.alt2.valid);
-  Serial.print("] ");
-  Serial.println(t.alt2.altitude_m, 2); //debug check and removed +ALTITUDE_OFFSET for ALT2
+  if (!alt1Ready && alt2Ready)
+  {
+    Serial.print(" ALT2[");
+    Serial.print(t.alt2.valid);
+    Serial.print("] ");
+    Serial.println(t.alt2.altitude_m + ALTITUDE_OFFSET, 2); // debug check and removed +ALTITUDE_OFFSET for ALT2
+  }
+  else if ((alt1Ready && !alt2Ready) || (alt1Ready && alt2Ready))
+  {
+    Serial.print(" ALT1[");
+    Serial.print(t.alt1.valid);
+    Serial.print("] ");
+    Serial.print(t.alt1.altitude_m + ALTITUDE_OFFSET, 2);
+  }
 }
 
 // ============================================================
 // PACKET BUILD / TX
 // ============================================================
-void sendTelemetry(const Telemetry &t) {
-  if (!radioReady) return;
+void sendTelemetry(const Telemetry &t)
+{
+  if (!radioReady)
+    return;
 
   char packet[RADIO_PACKET_MAX];
 
   int len = snprintf(
-    packet, sizeof(packet),
-    "T,%lu,%d,%ld,%ld,%ld,%ld,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%d,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f",
-    (unsigned long)t.ms,
-    t.gps.valid,
-    (long)t.gps.lat,
-    (long)t.gps.lon,
-    (long)t.gps.alt_mm,
-    (long)t.gps.heading,
-    (unsigned)t.gps.fixType,
-    (unsigned)t.gps.sats,
-    t.imu.valid,
-    t.imu.ax, t.imu.ay, t.imu.az,
-    t.imu.gx, t.imu.gy, t.imu.gz,
-    t.imu.tempC,
-    t.alt1.valid,
-    t.alt1.pressure_mbar,
-    t.alt1.tempC,
-    t.alt1.altitude_m + ALTITUDE_OFFSET,
-    t.alt2.valid,
-    t.alt2.pressure_mbar,
-    t.alt2.tempC,
-    t.alt2.altitude_m //+ ALTITUDE_OFFSET
-  );
+      packet, sizeof(packet),
+      "T,%lu,%d,%ld,%ld,%ld,%ld,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%d,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f",
+      (unsigned long)t.ms,
+      t.gps.valid,
+      (long)t.gps.lat,
+      (long)t.gps.lon,
+      (long)t.gps.alt_mm,
+      (long)t.gps.heading,
+      (unsigned)t.gps.fixType,
+      (unsigned)t.gps.sats,
+      t.imu.valid,
+      t.imu.ax, t.imu.ay, t.imu.az,
+      t.imu.gx, t.imu.gy, t.imu.gz,
+      t.imu.tempC,
+      t.alt1.valid,
+      t.alt1.pressure_mbar,
+      t.alt1.tempC,
+      t.alt1.altitude_m + ALTITUDE_OFFSET,
+      t.alt2.valid,
+      t.alt2.pressure_mbar,
+      t.alt2.tempC,
+      t.alt2.altitude_m + ALTITUDE_OFFSET);
 
-  if (len <= 0) {
+  if (len <= 0)
+  {
     Serial.println("[TX FAIL] snprintf error");
     return;
   }
 
-  if (len >= (int)sizeof(packet)) {
+  if (len >= (int)sizeof(packet))
+  {
     Serial.println("[TX FAIL] packet truncated");
     return;
   }
@@ -539,18 +622,21 @@ void sendTelemetry(const Telemetry &t) {
   setTX();
 
   LoRa.beginPacket();
-  LoRa.write((const uint8_t*)packet, len);
+  LoRa.write((const uint8_t *)packet, len);
 
   int state = LoRa.endPacket(false);
 
   setRX();
 
-  if (state == 1) {
+  if (state == 1)
+  {
     Serial.print("[TX ");
     Serial.print(len);
     Serial.print("B] ");
     Serial.println(packet);
-  } else {
+  }
+  else
+  {
     Serial.println("[TX FAIL]");
   }
 }
@@ -558,25 +644,40 @@ void sendTelemetry(const Telemetry &t) {
 // ============================================================
 // SD CARD LOGGING
 // ============================================================
-bool initSD() {
+bool initSD()
+{
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
   delay(10);
 
-  if (!SD.begin(SD_CS, spiA, 4000000)) {
+  if (!SD.begin(SD_CS, spiA, 4000000))
+  {
     Serial.println("[SD] FAIL");
+    Serial.println("Playing SD failed Buzzer");
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    Serial.println("Done Playing SD failed Buzzer");
     return false;
   }
 
   // Find a unique log file name each boot
   int n = 0;
-  do {
+  do
+  {
     logFilename = "/log" + String(n++) + ".csv";
   } while (SD.exists(logFilename.c_str()) && n < 1000);
 
   // Write header matching packet order
   File f = SD.open(logFilename.c_str(), FILE_WRITE);
-  if (!f) {
+  if (!f)
+  {
     Serial.println("[SD] Failed to create log file");
     return false;
   }
@@ -592,11 +693,14 @@ bool initSD() {
   return true;
 }
 
-void logTelemetryToSD(const Telemetry &t) {
-  if (!sdReady) return;
+void logTelemetryToSD(const Telemetry &t)
+{
+  if (!sdReady)
+    return;
 
   File f = SD.open(logFilename.c_str(), FILE_APPEND);
-  if (!f) {
+  if (!f)
+  {
     Serial.println("[SD] Failed to open log file for append");
     return;
   }
@@ -605,37 +709,39 @@ void logTelemetryToSD(const Telemetry &t) {
 
   char row[256];
   int len = snprintf(
-    row, sizeof(row),
-    "T,%lu,%d,%ld,%ld,%ld,%ld,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%d,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f",
-    (unsigned long)t.ms,
-    t.gps.valid,
-    (long)t.gps.lat,
-    (long)t.gps.lon,
-    (long)t.gps.alt_mm,
-    (long)t.gps.heading,
-    (unsigned)t.gps.fixType,
-    (unsigned)t.gps.sats,
-    t.imu.valid,
-    t.imu.ax, t.imu.ay, t.imu.az,
-    t.imu.gx, t.imu.gy, t.imu.gz,
-    t.imu.tempC,
-    t.alt1.valid,
-    t.alt1.pressure_mbar,
-    t.alt1.tempC,
-    t.alt1.altitude_m + ALTITUDE_OFFSET,
-    t.alt2.valid,
-    t.alt2.pressure_mbar,
-    t.alt2.tempC,
-    t.alt2.altitude_m //+ ALTITUDE_OFFSET
+      row, sizeof(row),
+      "T,%lu,%d,%ld,%ld,%ld,%ld,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%d,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f",
+      (unsigned long)t.ms,
+      t.gps.valid,
+      (long)t.gps.lat,
+      (long)t.gps.lon,
+      (long)t.gps.alt_mm,
+      (long)t.gps.heading,
+      (unsigned)t.gps.fixType,
+      (unsigned)t.gps.sats,
+      t.imu.valid,
+      t.imu.ax, t.imu.ay, t.imu.az,
+      t.imu.gx, t.imu.gy, t.imu.gz,
+      t.imu.tempC,
+      t.alt1.valid,
+      t.alt1.pressure_mbar,
+      t.alt1.tempC,
+      t.alt1.altitude_m + ALTITUDE_OFFSET,
+      t.alt2.valid,
+      t.alt2.pressure_mbar,
+      t.alt2.tempC,
+      t.alt2.altitude_m //+ ALTITUDE_OFFSET
   );
 
-  if (len <= 0) {
+  if (len <= 0)
+  {
     Serial.println("[SD] snprintf error");
     f.close();
     return;
   }
 
-  if (len >= (int)sizeof(row)) {
+  if (len >= (int)sizeof(row))
+  {
     Serial.println("[SD] row truncated");
     f.close();
     return;
@@ -645,17 +751,19 @@ void logTelemetryToSD(const Telemetry &t) {
   f.close();
 
   Serial.println("After writing");
-
 }
 
 // ============================================================
 // SETUP / LOOP
 // ============================================================
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   delay(3000);
 
-  ledcSetup(buzzerChannel, 2000, 8); //conforming to older style version > ledcAttach (<---- that's newer style api for buzzer)
+  Serial.println("BUZZER LEDC TEST START");
+
+  ledcSetup(buzzerChannel, 2000, resolution);
   ledcAttachPin(buzzerPin, buzzerChannel);
 
   Serial.println("BOOT 1");
@@ -689,19 +797,16 @@ void setup() {
   sdReady = initSD();
   Serial.println("AFTER SD");
 
-  //ledcAttach(buzzerPin, 2000, 8);
+  // ledcAttach(buzzerPin, 2000, 8);
 
-
-  if (!gpsReady || !imuReady || (!alt1Ready && !alt2Ready) || !radioReady || !sdReady) {
+  if (!gpsReady || !imuReady || (!alt1Ready && !alt2Ready) || !radioReady || !sdReady)
+  {
     Serial.println("[INIT] One or more subsystems failed -- buzzer ON");
-    ledcWriteTone(buzzerChannel, NOTE_C4); //replaced buzzerPin with buzzerChannel
-    delay(5000);
-    ledcWriteTone(buzzerChannel,0); //replaced buzzerPin with buzzerChannel
-    
   }
 }
 
-void loop() {
+void loop()
+{
   Telemetry t = readTelemetry();
   printTelemetry(t);
   sendTelemetry(t);
