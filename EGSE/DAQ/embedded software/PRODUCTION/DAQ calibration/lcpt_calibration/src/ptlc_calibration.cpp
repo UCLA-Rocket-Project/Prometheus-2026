@@ -60,6 +60,20 @@ static float readFloatPrompt(const char* prompt) {
   }
 }
 
+static bool readFloatOrQuit(const char* prompt, float& value) {
+  while (true) {
+    Serial.print(prompt);
+    String line = readLineTrimmed();
+    if (line == "q" || line == "Q") {
+      return false;
+    }
+    if (parseFloatStrict(line, value)) {
+      return true;
+    }
+    Serial.println("Invalid number. Enter a numeric value or q to finish.");
+  }
+}
+
 static std::vector<int> readUniqueChannels(int count, int maxChannels) {
   std::vector<int> channels;
   channels.reserve(count);
@@ -193,23 +207,23 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
   }
   Serial.println();
 
-  int points = readIntInRange("How many calibration points? (min 2): ", 2, 50);
+  Serial.println("Enter calibration points one at a time.");
+  Serial.println("Type q instead of a value when you want to finish and compute the fit.");
+
   std::vector<float> engVals;
   std::vector<std::vector<float>> rawValsByChannel(channels.size());
-  engVals.reserve(points);
 
-  for (size_t i = 0; i < channels.size(); i++) {
-    rawValsByChannel[i].reserve(points);
-  }
-
-  for (int pointIndex = 0; pointIndex < points; pointIndex++) {
+  int pointIndex = 0;
+  while (true) {
     Serial.println();
     Serial.print("Point ");
     Serial.print(pointIndex + 1);
-    Serial.print(" of ");
-    Serial.println(points);
+    Serial.println(":");
 
-    float known = readFloatPrompt("Enter known value (engineering units): ");
+    float known = 0.0f;
+    if (!readFloatOrQuit("Enter known value (engineering units, or q to finish): ", known)) {
+      break;
+    }
     waitForEnter("Apply this known value physically to all selected channels, let it settle, then press Enter.");
     engVals.push_back(known);
 
@@ -224,6 +238,14 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
       Serial.print(" = ");
       Serial.println(raw, 8);
     }
+
+    pointIndex++;
+  }
+
+  if (engVals.size() < 2) {
+    Serial.println();
+    Serial.println("Need at least 2 calibration points before computing a fit. Batch canceled.");
+    return;
   }
 
   Serial.println();
