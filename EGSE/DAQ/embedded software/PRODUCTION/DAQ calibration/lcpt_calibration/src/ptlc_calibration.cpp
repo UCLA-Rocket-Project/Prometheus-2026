@@ -181,7 +181,7 @@ static void liveReadAllChannels() {
       Serial.print("PT");
       Serial.print(channel);
       Serial.print("=");
-      Serial.print(readRawAverage(SENSOR_PT, channel), 1);
+      Serial.print(readRawAverage(SENSOR_PT, channel, 3), 1);
     }
 
     for (int channel = 0; channel < 2; channel++) {
@@ -189,7 +189,7 @@ static void liveReadAllChannels() {
       Serial.print("LC");
       Serial.print(channel);
       Serial.print("=");
-      Serial.print(readRawAverage(SENSOR_LC, channel), 1);
+      Serial.print(readRawAverage(SENSOR_LC, channel, 3), 1);
     }
 
     Serial.println();
