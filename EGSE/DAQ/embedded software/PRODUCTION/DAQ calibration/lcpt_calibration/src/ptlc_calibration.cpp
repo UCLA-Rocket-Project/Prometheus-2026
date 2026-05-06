@@ -193,7 +193,40 @@ static void printCalibrationResult(SensorType type, int channel, float m, float 
   }
 }
 
-static void calibrateChannelBatch(SensorType type, const std::vector<int>& channels) {
+static void printCompactCalibrationLine(SensorType type, const std::vector<int>& channels, const std::vector<float>& mVals, const std::vector<float>& bVals, const std::vector<bool>& fitOk) {
+  Serial.println();
+  Serial.print("Compact coefficients: ");
+  bool printedAny = false;
+  for (size_t i = 0; i < channels.size(); i++) {
+    if (!fitOk[i]) {
+      continue;
+    }
+
+    if (printedAny) {
+      Serial.print(" ");
+    }
+
+    if (type == SENSOR_PT) {
+      Serial.print("PT_CALIBRATION[");
+    } else {
+      Serial.print("LC_CALIBRATION[");
+    }
+    Serial.print(channels[i]);
+    Serial.print("]={");
+    Serial.print(mVals[i], 8);
+    Serial.print("f,");
+    Serial.print(bVals[i], 8);
+    Serial.print("f};");
+    printedAny = true;
+  }
+
+  if (!printedAny) {
+    Serial.print("(no valid fits)");
+  }
+  Serial.println();
+}
+
+static void calibrateChannelBatch(SensorType type, const std::vector<int>& channels, bool compactOutput) {
   Serial.println();
   Serial.print("=== Calibrating ");
   Serial.print(type == SENSOR_PT ? "PT" : "LC");
@@ -249,6 +282,10 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
   }
 
   Serial.println();
+  std::vector<float> mVals(channels.size(), 0.0f);
+  std::vector<float> bVals(channels.size(), 0.0f);
+  std::vector<bool> fitOk(channels.size(), false);
+
   for (size_t channelIndex = 0; channelIndex < channels.size(); channelIndex++) {
     float m = 0.0f;
     float b = 0.0f;
@@ -260,7 +297,17 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
       continue;
     }
 
-    printCalibrationResult(type, channels[channelIndex], m, b);
+    mVals[channelIndex] = m;
+    bVals[channelIndex] = b;
+    fitOk[channelIndex] = true;
+
+    if (!compactOutput) {
+      printCalibrationResult(type, channels[channelIndex], m, b);
+    }
+  }
+
+  if (compactOutput) {
+    printCompactCalibrationLine(type, channels, mVals, bVals, fitOk);
   }
 }
 
@@ -309,9 +356,49 @@ void startCalibration() {
       continue;
     }
 
-    int count = readIntInRange("How many channels do you want to calibrate now? ", 1, maxChannels);
-    std::vector<int> channels = readUniqueChannels(count, maxChannels);
-    calibrateChannelBatch(type, channels);
+    Serial.println("Channel selection:");
+    Serial.print("  a = all ");
+    Serial.print(type == SENSOR_PT ? "PT" : "LC");
+    Serial.println(" channels");
+    Serial.println("  number = choose how many channels manually");
+
+    std::vector<int> channels;
+    bool compactOutput = false;
+    while (true) {
+      Serial.print("Enter channel selection (a or count): ");
+      String selection = readLineTrimmed();
+
+      if (selection == "a" || selection == "A") {
+        channels.reserve(maxChannels);
+        for (int ch = 0; ch < maxChannels; ch++) {
+          channels.push_back(ch);
+        }
+        compactOutput = true;
+        break;
+      }
+
+      float maybeCount = 0.0f;
+      if (!parseFloatStrict(selection, maybeCount)) {
+        Serial.println("Invalid input. Enter a or an integer channel count.");
+        continue;
+      }
+
+      int count = (int)maybeCount;
+      if (maybeCount != (float)count || count < 1 || count > maxChannels) {
+        Serial.print("Enter an integer from 1 to ");
+        Serial.print(maxChannels);
+        Serial.print(", or a for all ");
+        Serial.print(type == SENSOR_PT ? "PT" : "LC");
+        Serial.println(" channels.");
+        continue;
+      }
+
+      channels = readUniqueChannels(count, maxChannels);
+      compactOutput = false;
+      break;
+    }
+
+    calibrateChannelBatch(type, channels, compactOutput);
 
     Serial.println();
     Serial.println("Batch complete.");
