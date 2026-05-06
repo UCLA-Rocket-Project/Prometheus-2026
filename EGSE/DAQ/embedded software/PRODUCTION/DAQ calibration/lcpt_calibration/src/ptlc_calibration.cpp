@@ -60,6 +60,31 @@ static float readFloatPrompt(const char* prompt) {
   }
 }
 
+static std::vector<int> readUniqueChannels(int count, int maxChannels) {
+  std::vector<int> channels;
+  channels.reserve(count);
+
+  while ((int)channels.size() < count) {
+    int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
+    bool alreadySelected = false;
+    for (size_t i = 0; i < channels.size(); i++) {
+      if (channels[i] == channel) {
+        alreadySelected = true;
+        break;
+      }
+    }
+
+    if (alreadySelected) {
+      Serial.println("Channel already selected. Choose a different channel.");
+      continue;
+    }
+
+    channels.push_back(channel);
+  }
+
+  return channels;
+}
+
 static void waitForEnter(const char* prompt) {
   Serial.println(prompt);
   readLineTrimmed();
@@ -122,46 +147,13 @@ static void liveReadChannel(SensorType type, int channel) {
   }
 }
 
-static void calibrateOneChannel(SensorType type, int channel) {
+static void printCalibrationResult(SensorType type, int channel, float m, float b) {
   Serial.println();
-  Serial.print("=== Calibrating ");
+  Serial.print("Result for ");
   Serial.print(type == SENSOR_PT ? "PT" : "LC");
   Serial.print(channel);
-  Serial.println(" ===");
-
-  int points = readIntInRange("How many calibration points? (min 2): ", 2, 50);
-  std::vector<float> engVals;
-  std::vector<float> rawVals;
-  engVals.reserve(points);
-  rawVals.reserve(points);
-
-  for (int i = 0; i < points; i++) {
-    Serial.println();
-    Serial.print("Point ");
-    Serial.print(i + 1);
-    Serial.print(" of ");
-    Serial.println(points);
-
-    float known = readFloatPrompt("Enter known value (engineering units): ");
-    waitForEnter("Apply this known value physically, let it settle, then press Enter.");
-
-    float raw = readRawAverage(type, channel);
-    engVals.push_back(known);
-    rawVals.push_back(raw);
-
-    Serial.print("Captured raw average = ");
-    Serial.println(raw, 8);
-  }
-
-  float m = 0.0f;
-  float b = 0.0f;
-  if (!computeRawToEngineeringFit(rawVals, engVals, m, b)) {
-    Serial.println("Fit failed. Ensure you used at least 2 distinct raw points.");
-    return;
-  }
-
-  Serial.println();
-  Serial.println("Result (DIRECT FORM): calibrated = raw * m + b");
+  Serial.println(":");
+  Serial.println("DIRECT FORM: calibrated = raw * m + b");
   Serial.print("m = ");
   Serial.println(m, 8);
   Serial.print("b = ");
@@ -184,6 +176,69 @@ static void calibrateOneChannel(SensorType type, int channel) {
     Serial.print("f, ");
     Serial.print(b, 8);
     Serial.println("f};");
+  }
+}
+
+static void calibrateChannelBatch(SensorType type, const std::vector<int>& channels) {
+  Serial.println();
+  Serial.print("=== Calibrating ");
+  Serial.print(type == SENSOR_PT ? "PT" : "LC");
+  Serial.println(" channel batch ===");
+  Serial.print("Selected channels: ");
+  for (size_t i = 0; i < channels.size(); i++) {
+    if (i > 0) {
+      Serial.print(", ");
+    }
+    Serial.print(channels[i]);
+  }
+  Serial.println();
+
+  int points = readIntInRange("How many calibration points? (min 2): ", 2, 50);
+  std::vector<float> engVals;
+  std::vector<std::vector<float>> rawValsByChannel(channels.size());
+  engVals.reserve(points);
+
+  for (size_t i = 0; i < channels.size(); i++) {
+    rawValsByChannel[i].reserve(points);
+  }
+
+  for (int pointIndex = 0; pointIndex < points; pointIndex++) {
+    Serial.println();
+    Serial.print("Point ");
+    Serial.print(pointIndex + 1);
+    Serial.print(" of ");
+    Serial.println(points);
+
+    float known = readFloatPrompt("Enter known value (engineering units): ");
+    waitForEnter("Apply this known value physically to all selected channels, let it settle, then press Enter.");
+    engVals.push_back(known);
+
+    for (size_t channelIndex = 0; channelIndex < channels.size(); channelIndex++) {
+      int channel = channels[channelIndex];
+      float raw = readRawAverage(type, channel);
+      rawValsByChannel[channelIndex].push_back(raw);
+
+      Serial.print("Captured raw average for ");
+      Serial.print(type == SENSOR_PT ? "PT" : "LC");
+      Serial.print(channel);
+      Serial.print(" = ");
+      Serial.println(raw, 8);
+    }
+  }
+
+  Serial.println();
+  for (size_t channelIndex = 0; channelIndex < channels.size(); channelIndex++) {
+    float m = 0.0f;
+    float b = 0.0f;
+    if (!computeRawToEngineeringFit(rawValsByChannel[channelIndex], engVals, m, b)) {
+      Serial.print("Fit failed for ");
+      Serial.print(type == SENSOR_PT ? "PT" : "LC");
+      Serial.print(channels[channelIndex]);
+      Serial.println(". Ensure you used at least 2 distinct raw points.");
+      continue;
+    }
+
+    printCalibrationResult(type, channels[channelIndex], m, b);
   }
 }
 
@@ -233,11 +288,8 @@ void startCalibration() {
     }
 
     int count = readIntInRange("How many channels do you want to calibrate now? ", 1, maxChannels);
-
-    for (int i = 0; i < count; i++) {
-      int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
-      calibrateOneChannel(type, channel);
-    }
+    std::vector<int> channels = readUniqueChannels(count, maxChannels);
+    calibrateChannelBatch(type, channels);
 
     Serial.println();
     Serial.println("Batch complete.");
