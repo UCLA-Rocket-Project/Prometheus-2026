@@ -161,6 +161,41 @@ static void liveReadChannel(SensorType type, int channel) {
   }
 }
 
+static void liveReadAllChannels() {
+  Serial.println();
+  Serial.println("Live raw read for all PT and LC channels.");
+  Serial.println("Press ENTER to read one sample average set, or type q then ENTER to stop.");
+
+  while (true) {
+    Serial.print("> ");
+    String cmd = readLineTrimmed();
+    if (cmd == "q" || cmd == "Q") {
+      Serial.println("Leaving live read mode.");
+      return;
+    }
+
+    for (int channel = 0; channel < 8; channel++) {
+      if (channel > 0) {
+        Serial.print(" ");
+      }
+      Serial.print("PT");
+      Serial.print(channel);
+      Serial.print("=");
+      Serial.print(readRawAverage(SENSOR_PT, channel), 8);
+    }
+
+    for (int channel = 0; channel < 2; channel++) {
+      Serial.print(" ");
+      Serial.print("LC");
+      Serial.print(channel);
+      Serial.print("=");
+      Serial.print(readRawAverage(SENSOR_LC, channel), 8);
+    }
+
+    Serial.println();
+  }
+}
+
 static void printCalibrationResult(SensorType type, int channel, float m, float b) {
   Serial.println();
   Serial.print("Result for ");
@@ -340,16 +375,33 @@ void startCalibration() {
       type = SENSOR_LC;
       maxChannels = 2;
     } else if (mode == "3") {
-      int typeChoice = readIntInRange("Read which sensor type? (1=PT, 2=LC): ", 1, 2);
-      if (typeChoice == 1) {
-        type = SENSOR_PT;
-        maxChannels = 8;
-      } else {
-        type = SENSOR_LC;
-        maxChannels = 2;
+      while (true) {
+        Serial.print("Read which sensor type? (1=PT, 2=LC, a=all): ");
+        String liveSelection = readLineTrimmed();
+
+        if (liveSelection == "a" || liveSelection == "A") {
+          liveReadAllChannels();
+          break;
+        }
+
+        if (liveSelection == "1") {
+          type = SENSOR_PT;
+          maxChannels = 8;
+          int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
+          liveReadChannel(type, channel);
+          break;
+        }
+
+        if (liveSelection == "2") {
+          type = SENSOR_LC;
+          maxChannels = 2;
+          int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
+          liveReadChannel(type, channel);
+          break;
+        }
+
+        Serial.println("Invalid selection.");
       }
-      int channel = readIntInRange("Enter channel index: ", 0, maxChannels - 1);
-      liveReadChannel(type, channel);
       continue;
     } else {
       Serial.println("Invalid selection.");
