@@ -1,25 +1,15 @@
-//code derived from nosecone transmitter board 
-
 #include <Wire.h>
 #include <SPI.h>
 #include <FS.h>
-
-#include <math.h>
-
-#include <SparkFun_u-blox_GNSS_v3.h>
+#include <Arduino.h>
 #include <LoRa.h>
 
-#include <Arduino.h>
-
 // ============================================================
-// PINS - used from NOSE CONE RECEIVER BOARD --> use esp32dev since its wroom esp32
+// PINS - GROUND STATION (WROOM ESP32)
 // ============================================================
-
-// SPI BUS A: RADIO
 #define SCLK_A_PIN 32
 #define MISO_A_PIN 35
 #define MOSI_A_PIN 25
-
 #define RADIO_CS 33
 #define RST_RADIO 27
 #define RADIO_DIO1 14
@@ -29,129 +19,34 @@
 // ============================================================
 // CONFIG
 // ============================================================
-#define LOOP_DELAY_MS 100
+#define LORA_FREQ 915E6
+#define LORA_SPREADING_FACTOR 8
+#define LORA_SIGNAL_BANDWIDTH 250E3
+#define LORA_CODING_RATE 5
+#define LORA_TX_POWER 20
 #define RADIO_PACKET_MAX 220
-
-// IMPORTANT: make these match receiver exactly
-#define LORA_FREQ              915E6
-#define LORA_SPREADING_FACTOR  8
-#define LORA_SIGNAL_BANDWIDTH  250E3
-#define LORA_CODING_RATE       5
-#define LORA_TX_POWER          20
-
-// MS5607 commands
-static const uint8_t MS5607_CMD_RESET = 0x1E;
-static const uint8_t MS5607_CMD_ADC_READ = 0x00;
-static const uint8_t MS5607_CMD_PROM_READ_BASE = 0xA0;
-static const uint8_t MS5607_CMD_CONV_D1 = 0x48;  // OSR 4096
-static const uint8_t MS5607_CMD_CONV_D2 = 0x58;  // OSR 4096
+#define LOOP_DELAY_MS 100
 
 // ============================================================
 // GLOBALS
 // ============================================================
 SPIClass spiA(VSPI);
 
-TwoWire gnssWire = TwoWire(0);
-SFE_UBLOX_GNSS gnss;
-
 bool radioReady = false;
-
-// ============================================================
-// MS5607 DRIVER
-// ============================================================
-class MS5607 {
-public:
-  MS5607() : spi(nullptr), cs(-1), initialized(false) {
-    for (int i = 0; i < 8; i++) C[i] = 0;
-  }
-
-  bool begin(SPIClass *bus, int csPin) {
-    spi = bus;
-    cs = csPin;
-
-    pinMode(cs, OUTPUT);
-    digitalWrite(cs, HIGH);
-
-    reset();
-    delay(10);
-
-    for (int i = 0; i < 8; i++) {
-      C[i] = readPROM(i);
-    }
-
-    if (C[1] == 0 || C[1] == 0xFFFF || C[2] == 0 || C[2] == 0xFFFF) {
-      initialized = false;
-      return false;
-    }
-
-    initialized = true;
-    return true;
-  }
-
-private:
-  SPIClass *spi;
-  int cs;
-  bool initialized;
-  uint16_t C[8];
-
-  void beginTx() {
-    spi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-    digitalWrite(cs, LOW);
-  }
-
-  void endTx() {
-    digitalWrite(cs, HIGH);
-    spi->endTransaction();
-  }
-
-  void reset() {
-    beginTx();
-    spi->transfer(MS5607_CMD_RESET);
-    endTx();
-  }
-
-  uint16_t readPROM(uint8_t index) {
-    uint8_t cmd = MS5607_CMD_PROM_READ_BASE + (index * 2);
-    beginTx();
-    spi->transfer(cmd);
-    uint8_t msb = spi->transfer(0x00);
-    uint8_t lsb = spi->transfer(0x00);
-    endTx();
-    return ((uint16_t)msb << 8) | lsb;
-  }
-
-  uint32_t convertAndRead(uint8_t cmd) {
-    beginTx();
-    spi->transfer(cmd);
-    endTx();
-
-    delayMicroseconds(10000);
-
-    beginTx();
-    spi->transfer(MS5607_CMD_ADC_READ);
-    uint8_t b1 = spi->transfer(0x00);
-    uint8_t b2 = spi->transfer(0x00);
-    uint8_t b3 = spi->transfer(0x00);
-    endTx();
-
-    return ((uint32_t)b1 << 16) | ((uint32_t)b2 << 8) | b3;
-  }
-};
+bool receiving = false;
 
 // ============================================================
 // RADIO CONTROL
 // ============================================================
-#define LORA_CS   RADIO_CS
-#define LORA_RST  RST_RADIO
-#define LORA_DIO0 RADIO_DIO1
-
-void setTX() {
+void setTX()
+{
   digitalWrite(RXEN, LOW);
   digitalWrite(TXEN, HIGH);
   delayMicroseconds(100);
 }
 
-void setRX() {
+void setRX()
+{
   digitalWrite(TXEN, LOW);
   digitalWrite(RXEN, HIGH);
   delayMicroseconds(100);
@@ -160,20 +55,21 @@ void setRX() {
 // ============================================================
 // INIT
 // ============================================================
-
-bool initRadio() {
+bool initRadio()
+{
   pinMode(TXEN, OUTPUT);
   pinMode(RXEN, OUTPUT);
   setRX();
 
-  pinMode(LORA_RST, OUTPUT);
-  digitalWrite(LORA_RST, HIGH);
+  pinMode(RST_RADIO, OUTPUT);
+  digitalWrite(RST_RADIO, HIGH);
   delay(20);
 
   LoRa.setSPI(spiA);
-  LoRa.setPins(LORA_CS, LORA_RST, LORA_DIO0);
+  LoRa.setPins(RADIO_CS, RST_RADIO, RADIO_DIO1);
 
-  if (!LoRa.begin(LORA_FREQ)) {
+  if (!LoRa.begin(LORA_FREQ))
+  {
     Serial.println("[LORA] FAIL");
     return false;
   }
@@ -188,46 +84,137 @@ bool initRadio() {
 }
 
 // ============================================================
-// PACKET BUILD / TX
+// SEND
 // ============================================================
-
-void sendPacket(const String &instruct) {
+void sendPacket(const String &msg)
+{
   if (!radioReady)
     return;
-
-  if (instruct.length() == 0) {
-    Serial.println("[TX FAIL] empty message");
+  if (msg.length() == 0)
+  {
+    Serial.println("[TX FAIL] empty");
     return;
   }
-
-  if (instruct.length() >= RADIO_PACKET_MAX) {
-    Serial.println("[TX FAIL] message too long");
+  if (msg.length() >= RADIO_PACKET_MAX)
+  {
+    Serial.println("[TX FAIL] too long");
     return;
   }
 
   setTX();
-
   LoRa.beginPacket();
-  LoRa.print(instruct);
+  LoRa.print(msg);
   int state = LoRa.endPacket(false);
-
   setRX();
 
-  if (state == 1) {
+  if (state == 1)
+  {
     Serial.print("[TX ");
-    Serial.print(instruct.length());
+    Serial.print(msg.length());
     Serial.print("B] ");
-    Serial.println(instruct);
+    Serial.println(msg);
   }
-  else {
-    Serial.println(" [TX FAIL]");
+  else
+  {
+    Serial.println("[TX FAIL]");
+  }
+}
+
+// ============================================================
+// PARSE + PRINT GPS PACKET
+// format: G,lat,lon,alt_mm,fixType,sats
+// ============================================================
+void parseAndPrintGPS(char *packet, int rssi, float snr)
+{
+  char *fields[6];
+  int count = 0;
+
+  char *saveptr = nullptr;
+  char *token = strtok_r(packet, ",", &saveptr);
+  while (token != nullptr && count < 6)
+  {
+    fields[count++] = token;
+    token = strtok_r(nullptr, ",", &saveptr);
+  }
+
+  if (count != 6 || strcmp(fields[0], "G") != 0)
+  {
+    Serial.print("[RX RAW] ");
+    Serial.println(packet);
+    return;
+  }
+
+  long lat = atol(fields[1]);
+  long lon = atol(fields[2]);
+  long alt_mm = atol(fields[3]);
+  int fixType = atoi(fields[4]);
+  int sats = atoi(fields[5]);
+
+  Serial.print("[GPS] lat=");
+  Serial.print(lat / 10000000.0, 6);
+  Serial.print(" lon=");
+  Serial.print(lon / 10000000.0, 6);
+  Serial.print(" alt=");
+  Serial.print(alt_mm / 1000.0, 1);
+  Serial.print("m fix=");
+  Serial.print(fixType);
+  Serial.print(" sats=");
+  Serial.print(sats);
+  Serial.print(" RSSI=");
+  Serial.print(rssi);
+  Serial.print(" SNR=");
+  Serial.println(snr, 1);
+}
+
+// ============================================================
+// RECEIVE LOOP
+// ============================================================
+void receiveLoop()
+{
+  Serial.println("[RX MODE] Listening for GPS... press X to stop");
+  LoRa.receive();
+
+  while (true)
+  {
+    // check for X to exit
+    if (Serial.available())
+    {
+      String cmd = Serial.readStringUntil('\n');
+      cmd.trim();
+      if (cmd == "X" || cmd == "x")
+      {
+        Serial.println("[RX MODE] Stopped. Back to send mode.");
+        receiving = false;
+        return;
+      }
+    }
+
+    int packetSize = LoRa.parsePacket();
+    if (packetSize > 0 && packetSize < RADIO_PACKET_MAX)
+    {
+      char packet[RADIO_PACKET_MAX];
+      int index = 0;
+      while (LoRa.available() && index < RADIO_PACKET_MAX - 1)
+      {
+        packet[index++] = (char)LoRa.read();
+      }
+      packet[index] = '\0';
+
+      int rssi = LoRa.packetRssi();
+      float snr = LoRa.packetSnr();
+
+      char parseBuf[RADIO_PACKET_MAX];
+      strncpy(parseBuf, packet, RADIO_PACKET_MAX);
+      parseAndPrintGPS(parseBuf, rssi, snr);
+    }
   }
 }
 
 // ============================================================
 // SETUP / LOOP
 // ============================================================
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   delay(3000);
 
@@ -236,18 +223,29 @@ void setup() {
   Serial.println("BOOT 2");
   radioReady = initRadio();
 
+  Serial.println("Ready. Enter instruction to send, or 'T' to start receiving.");
 }
 
-
-void loop() {
-  Serial.println("Enter instruction:");
-  while (Serial.available() == 0) {
+void loop()
+{
+  Serial.println("Enter instruction (T = receive mode):");
+  while (Serial.available() == 0)
+  {
   }
 
-  String instruction = Serial.readString();
+  String instruction = Serial.readStringUntil('\n');
   instruction.trim();
 
-  sendPacket(instruction);
+  if (instruction == "T" || instruction == "t")
+  {
+    receiving = true;
+    sendPacket("T"); // tell the nosecone to start transmitting
+    receiveLoop();
+  }
+  else
+  {
+    sendPacket(instruction);
+  }
 
   delay(LOOP_DELAY_MS);
 }
