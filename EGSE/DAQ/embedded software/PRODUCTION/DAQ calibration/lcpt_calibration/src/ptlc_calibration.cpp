@@ -60,17 +60,26 @@ static float readFloatPrompt(const char* prompt) {
   }
 }
 
-static bool readFloatOrQuit(const char* prompt, float& value) {
+enum InputAction {
+  INPUT_VALUE,
+  INPUT_FINISH,
+  INPUT_DELETE_LAST,
+};
+
+static InputAction readFloatOrControl(const char* prompt, float& value) {
   while (true) {
     Serial.print(prompt);
     String line = readLineTrimmed();
     if (line == "q" || line == "Q") {
-      return false;
+      return INPUT_FINISH;
+    }
+    if (line == "d" || line == "D") {
+      return INPUT_DELETE_LAST;
     }
     if (parseFloatStrict(line, value)) {
-      return true;
+      return INPUT_VALUE;
     }
-    Serial.println("Invalid number. Enter a numeric value or q to finish.");
+    Serial.println("Invalid input. Enter a numeric value, d to delete last point, or q to finish.");
   }
 }
 
@@ -276,22 +285,39 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
   Serial.println();
 
   Serial.println("Enter calibration points one at a time.");
+  Serial.println("Type d to delete the last captured point.");
   Serial.println("Type q instead of a value when you want to finish and compute the fit.");
 
   std::vector<float> engVals;
   std::vector<std::vector<float>> rawValsByChannel(channels.size());
 
-  int pointIndex = 0;
   while (true) {
     Serial.println();
     Serial.print("Point ");
-    Serial.print(pointIndex + 1);
+    Serial.print((int)engVals.size() + 1);
     Serial.println(":");
 
     float known = 0.0f;
-    if (!readFloatOrQuit("Enter known value (engineering units, or q to finish): ", known)) {
+    InputAction action = readFloatOrControl("Enter known value (engineering units, d to delete last, or q to finish): ", known);
+    if (action == INPUT_FINISH) {
       break;
     }
+    if (action == INPUT_DELETE_LAST) {
+      if (engVals.empty()) {
+        Serial.println("No captured points to delete.");
+        continue;
+      }
+
+      engVals.pop_back();
+      for (size_t channelIndex = 0; channelIndex < rawValsByChannel.size(); channelIndex++) {
+        if (!rawValsByChannel[channelIndex].empty()) {
+          rawValsByChannel[channelIndex].pop_back();
+        }
+      }
+      Serial.println("Deleted last captured calibration point.");
+      continue;
+    }
+
     waitForEnter("Apply this known value physically to all selected channels, let it settle, then press Enter.");
     engVals.push_back(known);
 
@@ -307,7 +333,6 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
       Serial.println(raw, 8);
     }
 
-    pointIndex++;
   }
 
   if (engVals.size() < 2) {
