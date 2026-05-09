@@ -371,6 +371,9 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
     waitForEnter("Apply this known value physically to all selected channels, let it settle, then press Enter.");
     engVals.push_back(known);
 
+    Serial.println();
+    Serial.print("Engineering value: ");
+    Serial.println(known, 8);
     for (size_t channelIndex = 0; channelIndex < channels.size(); channelIndex++) {
       int channel = channels[channelIndex];
       float raw = readRawAverage(type, channel);
