@@ -64,6 +64,8 @@ enum InputAction {
   INPUT_VALUE,
   INPUT_FINISH,
   INPUT_DELETE_LAST,
+  INPUT_VIEW_CURRENT,
+  INPUT_VIEW_POINTS,
 };
 
 static InputAction readFloatOrControl(const char* prompt, float& value) {
@@ -76,10 +78,16 @@ static InputAction readFloatOrControl(const char* prompt, float& value) {
     if (line == "d" || line == "D") {
       return INPUT_DELETE_LAST;
     }
+    if (line == "v" || line == "V") {
+      return INPUT_VIEW_CURRENT;
+    }
+    if (line == "p" || line == "P") {
+      return INPUT_VIEW_POINTS;
+    }
     if (parseFloatStrict(line, value)) {
       return INPUT_VALUE;
     }
-    Serial.println("Invalid input. Enter a numeric value, d to delete last point, or q to finish.");
+    Serial.println("Invalid input. Enter a numeric value, v to view current voltage, p to view captured points, d to delete last, or q to finish.");
   }
 }
 
@@ -285,6 +293,8 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
   Serial.println();
 
   Serial.println("Enter calibration points one at a time.");
+  Serial.println("Type v to view current sensor voltage.");
+  Serial.println("Type p to view all captured points.");
   Serial.println("Type d to delete the last captured point.");
   Serial.println("Type q instead of a value when you want to finish and compute the fit.");
 
@@ -298,7 +308,7 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
     Serial.println(":");
 
     float known = 0.0f;
-    InputAction action = readFloatOrControl("Enter known value (engineering units, d to delete last, or q to finish): ", known);
+    InputAction action = readFloatOrControl("Enter known value (engineering units, v to view, d to delete last, or q to finish): ", known);
     if (action == INPUT_FINISH) {
       break;
     }
@@ -315,6 +325,46 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
         }
       }
       Serial.println("Deleted last captured calibration point.");
+      continue;
+    }
+    if (action == INPUT_VIEW_CURRENT) {
+      Serial.println();
+      Serial.println("=== Current Sensor Readings ===");
+      for (size_t channelIndex = 0; channelIndex < channels.size(); channelIndex++) {
+        int channel = channels[channelIndex];
+        float raw = readRawAverage(type, channel);
+        Serial.print(type == SENSOR_PT ? "PT" : "LC");
+        Serial.print(channel);
+        Serial.print(" = ");
+        Serial.println(raw, 8);
+      }
+      Serial.println("===============================");
+      Serial.println();
+      continue;
+    }
+    if (action == INPUT_VIEW_POINTS) {
+      if (engVals.empty()) {
+        Serial.println("No captured points yet.");
+      } else {
+        Serial.println();
+        Serial.println("=== Captured Calibration Points ===");
+        for (size_t i = 0; i < engVals.size(); i++) {
+          Serial.print("Point ");
+          Serial.print((int)i + 1);
+          Serial.print(": Engineering = ");
+          Serial.print(engVals[i], 8);
+          for (size_t channelIndex = 0; channelIndex < channels.size(); channelIndex++) {
+            Serial.print(" | ");
+            Serial.print(type == SENSOR_PT ? "PT" : "LC");
+            Serial.print(channels[channelIndex]);
+            Serial.print(" raw = ");
+            Serial.print(rawValsByChannel[channelIndex][i], 8);
+          }
+          Serial.println();
+        }
+        Serial.println("===================================");
+        Serial.println();
+      }
       continue;
     }
 
