@@ -308,7 +308,7 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
     Serial.println(":");
 
     float known = 0.0f;
-    InputAction action = readFloatOrControl("Enter known value (engineering units, v to view, d to delete last, or q to finish): ", known);
+    InputAction action = readFloatOrControl("Enter known value (engineering units, v to view, d to delete last, p for all caputred points, or q to finish): ", known);
     if (action == INPUT_FINISH) {
       break;
     }
