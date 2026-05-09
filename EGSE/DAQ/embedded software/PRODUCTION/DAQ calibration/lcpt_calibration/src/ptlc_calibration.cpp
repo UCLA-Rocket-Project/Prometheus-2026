@@ -158,6 +158,11 @@ static bool computeRawToEngineeringFit(const std::vector<float>& rawVals, const 
 }
 
 static void liveReadChannel(SensorType type, int channel) {
+  if (type == SENSOR_LC && (channel < 0 || channel > 1)) {
+    Serial.println("Invalid LC channel. Use 0 or 1.");
+    return;
+  }
+
   Serial.println();
   Serial.print("Live raw read for ");
   Serial.print(type == SENSOR_PT ? "PT" : "LC");
@@ -172,7 +177,12 @@ static void liveReadChannel(SensorType type, int channel) {
       Serial.println("Leaving live read mode.");
       return;
     }
-    float raw = readRawAverage(type, channel);
+    int samples = (type == SENSOR_LC) ? 3 : 10;
+    float raw = readRawAverage(type, channel, samples);
+    if (!isfinite(raw)) {
+      Serial.println("Read failed (non-finite value). Try again.");
+      continue;
+    }
     Serial.print("Current raw average = ");
     Serial.println(raw, 8);
   }
