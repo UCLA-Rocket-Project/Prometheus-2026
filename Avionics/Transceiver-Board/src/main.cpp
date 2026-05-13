@@ -41,7 +41,7 @@ TwoWire gnssWire = TwoWire(0);
 SFE_UBLOX_GNSS gnss;
 
 bool gpsReady = false;
-bool transmitting = false; // flipped to true when "T" received
+bool transmitting = true; // flipped to true when "T" received
 
 unsigned long lastTxTime = 0;
 
@@ -134,7 +134,7 @@ void sendGPS()
 
   int32_t lat = gnss.getLatitude();
   int32_t lon = gnss.getLongitude();
-  int32_t alt_mm = gnss.getAltitudeMSL();
+  int32_t alt_mm = abs((gnss.getAltitudeMSL()));
   uint8_t fixType = gnss.getFixType();
   uint8_t sats = gnss.getSIV();
 
@@ -173,15 +173,10 @@ void checkIncoming()
   Serial.print("[RX] ");
   Serial.println(msg);
 
-  if (msg == "T")
+  if (msg == "launch" || msg == "Launch" || msg == "LAUNCH")
   {
-    transmitting = true;
-    Serial.println("[CMD] Starting GPS transmission");
-  }
-  else if (msg == "S")
-  {
-    transmitting = false;
-    Serial.println("[CMD] Stopped transmission");
+    //this needs to do SD card saving 
+    //Serial.println("[CMD] Starting GPS transmission");
   }
 }
 
