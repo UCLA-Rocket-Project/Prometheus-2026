@@ -223,12 +223,12 @@ void setup()
   Serial.println("BOOT 2");
   radioReady = initRadio();
 
-  Serial.println("Ready. Enter instruction to send, or 'T' to start receiving.");
+  Serial.println("Ready. Receiving Data, or 'R' to send command.");
 }
 
 void loop()
 {
-  Serial.println("Enter instruction (T = receive mode):");
+  Serial.println("Enter instruction (R command mode):");
   while (Serial.available() == 0)
   {
   }
@@ -236,15 +236,15 @@ void loop()
   String instruction = Serial.readStringUntil('\n');
   instruction.trim();
 
-  if (instruction == "T" || instruction == "t")
+  if (instruction == "Launch" || instruction == "launch" || instruction == "LAUNCH")
   {
-    receiving = true;
-    sendPacket("T"); // tell the nosecone to start transmitting
-    receiveLoop();
+    sendPacket(instruction);
   }
   else
   {
-    sendPacket(instruction);
+    receiving = true;
+    // sendPacket(""); // tell the nosecone to start transmitting
+    receiveLoop();
   }
 
   delay(LOOP_DELAY_MS);
