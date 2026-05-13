@@ -56,6 +56,7 @@ float getLCValue(int channel) {
     return loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3));
   }
   return loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1));
+}
 float getPTValue(int correctChannel) {
     float voltages[8];
     pressureADC.readAllChannels(ADS8688_CS, true, voltages);
