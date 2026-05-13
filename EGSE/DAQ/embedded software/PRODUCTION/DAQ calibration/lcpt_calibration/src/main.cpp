@@ -46,7 +46,7 @@ void setup() {
     loadCellADC.setDRATE(DRATE_1000SPS);
     // Initialize ADS8688 (PTs)
     pressureADC.begin(ADS1256_MISO, ADS1256_SCLK, ADS1256_MOSI, ADS8688_CS, 4.1, 0x05);
-    pressureADC.setInputRange(ADS8688_CS, 0x01);
+    pressureADC.setInputRange(ADS8688_CS, 0x01);//this maybe should be 0x06 but i think it is correct
 
     startCalibration();
 }
