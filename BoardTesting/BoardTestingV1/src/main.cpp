@@ -21,13 +21,17 @@ void batchDigitalWrite(int value){
 void setup() {
     Serial.begin(115200);
     delay(1000);
+
+    Serial.println("Serial Started.");
     
     initializePins();
 }
 
 void loop() {
+    Serial.println("Writing high.");
     batchDigitalWrite(LOW);
     delay(2000);
+    Serial.println("Writing low.");
     batchDigitalWrite(HIGH);
     delay(2000);
 }
