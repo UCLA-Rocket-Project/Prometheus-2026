@@ -1,20 +1,16 @@
-//Tests ADS8688
-//Intended public interface:
-//void runTest
-//  handles all testing, logs all results
-//  at bottom of file
 
 #include <Arduino.h>
 #include <SPI.h>
-#include <ADS8688.h>
+#include <ADS1256.h>
 
 int miso;
 int sclk;
 int mosi;
 int cs;
+int drdy;
 
 SPIClass sharedSPI(FSPI);
-ADS8688 pressureADC;
+ADS1256 loadCellADC(&sharedSPI, drdy, cs, 2.5);
 
 /// @brief Requires user confirmation for selected pin
 void confirmPins() {
@@ -31,7 +27,9 @@ void confirmPins() {
     Serial.print(" SCLK: ");
     Serial.print(sclk);
     Serial.print(" CS: ");
-    Serial.println(cs);
+    Serial.print(cs);
+    Serial.print(" DRDY: ");
+    Serial.println(drdy);
 
     Serial.print("Correct? (y/n): ");
     String input = Serial.readStringUntil('\n');
@@ -54,29 +52,35 @@ void beginSPI() {
 
 void beginADC() {
     Serial.print("Starting ADC...");
-    pressureADC.begin(miso, sclk, mosi, cs, 4.1, 0x01);
-    Serial.println(" Done.");
+    loadCellADC.InitializeADC();
+    Serial.print(" Initialized.");
+    loadCellADC.setPGA(PGA_64);
+    loadCellADC.setMUX(DIFF_0_1);
+    loadCellADC.setDRATE(DRATE_1000SPS);
+    Serial.println(" Configured.");
 }
 
-void readValues() {
-    Serial.print("Reading values: ");
-    float rawValues[8];
-    pressureADC.readAllChannels(cs, true, rawValues);
-    for(int i = 0; i < 8; i++){
-        Serial.print(rawValues[i]);
-        Serial.print(" ");
-    }
-    Serial.println();
+void readValues(){
+    const int multiplier = 100000;
+    Serial.print("Reading values (multiplied by ");
+    Serial.print(multiplier);
+    Serial.print("): ");
+
+    float channel0 = multiplier * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_0_1));
+    float channel1 = multiplier * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_2_3));
+    float channel2 = multiplier * loadCellADC.convertToVoltage(loadCellADC.readDifferentialFaster(DIFF_4_5));
+    Serial.print(channel0);
+    Serial.print(" ");
+    Serial.print(channel1);
+    Serial.print(" ");
+    Serial.println(channel2);
 }
 
-void runADS8688Test(int misoP, int mosiP, int sclkP, int csP) {
-    while (!Serial) delay(100);
-    Serial.println("Starting ADS8688 Test.");
+void runADS1256Test(int misoP, int mosiP, int sclkP, int csP, int drdyP){
+    while(!Serial)delay(100);
+    delay(1000);
 
-    miso = misoP;
-    mosi = mosiP;
-    sclk = sclkP;
-    cs = csP;
+    Serial.println("Starting 1256 Test.");
 
     confirmPins();
 
@@ -84,7 +88,7 @@ void runADS8688Test(int misoP, int mosiP, int sclkP, int csP) {
 
     beginADC();
 
-    Serial.println("Reading 10 values:");
+    Serial.println("Reading 10 values.");
     for(int i = 0; i < 10; i++){
         readValues();
     }
