@@ -218,7 +218,7 @@ def normalize_nosecone_packet(fields: dict, ctx: dict) -> dict:
         'rssi': int(float(fields.get('rssi', -99))),
         'rec_drogue': 0,
         'rec_main': 0,
-        'temp': float(fields.get('temp', 0.0)),
+        'temp': float(fields.get('altTemp', fields.get('temp', 0.0))),
         'snr': round(float(fields.get('snr', 0.0)), 2),
     }
 
