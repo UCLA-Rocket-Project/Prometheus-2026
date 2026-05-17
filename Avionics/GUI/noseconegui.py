@@ -4,7 +4,7 @@ import requests
 import socketio
 
 # --- CONFIGURATION ---
-PORT = "/dev/cu.usbserial-110"  # double check, may randomly change
+PORT = "/dev/cu.usbserial-310"  # double check, may randomly change
 BAUDRATE = 115200
 WEBSOCKET_ADDRESS = "http://localhost:3001/"
 TELEGRAF_URL = "http://localhost:8094/telegraf"
