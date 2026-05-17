@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { startDummyFeed, stopDummyFeed } from '../dummy/dummyFeed';
 
 const MAX_HISTORY = 500;
 const PAD_LAT = 34.8742;
 const PAD_LON = -117.3108;
-const IS_DEV = import.meta.env.DEV;
 
 export default function useTelemetry() {
   const [latest, setLatest] = useState(null);
@@ -39,15 +37,6 @@ export default function useTelemetry() {
   }, []);
 
   useEffect(() => {
-    if (IS_DEV) {
-      setConnected(true);
-      startDummyFeed(handlePacket);
-      return () => {
-        stopDummyFeed();
-        setConnected(false);
-      };
-    }
-
     let ws;
     let retryTimeout;
 
