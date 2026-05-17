@@ -4,10 +4,11 @@ import * as THREE from 'three';
 export default function QuatCanvas({ qw = 1, qx = 0, qy = 0, qz = 0 }) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
-  const quaternionRef = useRef(new THREE.Quaternion(0, 0, 0, 1));
+  const currentQuatRef = useRef(new THREE.Quaternion(0, 0, 0, 1));
+  const targetQuatRef  = useRef(new THREE.Quaternion(0, 0, 0, 1));
 
   useEffect(() => {
-    quaternionRef.current.set(qx, qy, qz, qw).normalize();
+    targetQuatRef.current.set(qx, qy, qz, qw).normalize();
   }, [qw, qx, qy, qz]);
 
   useEffect(() => {
@@ -91,21 +92,14 @@ export default function QuatCanvas({ qw = 1, qx = 0, qy = 0, qz = 0 }) {
     bodyAxesGroup.add(bx, by, bz);
     scene.add(bodyAxesGroup);
 
-    let autoYaw = 0;
     let frameId;
 
     function animate() {
       frameId = requestAnimationFrame(animate);
-      autoYaw += 0.003;
-      const camR = 5.5;
-      camera.position.x = Math.sin(autoYaw) * camR;
-      camera.position.z = Math.cos(autoYaw) * camR;
-      camera.position.y = 2.5;
-      camera.lookAt(0, 0.2, 0);
 
-      const q = quaternionRef.current;
-      rocketGroup.quaternion.copy(q);
-      bodyAxesGroup.quaternion.copy(q);
+      currentQuatRef.current.slerp(targetQuatRef.current, 0.2);
+      rocketGroup.quaternion.copy(currentQuatRef.current);
+      bodyAxesGroup.quaternion.copy(currentQuatRef.current);
 
       renderer.render(scene, camera);
     }
