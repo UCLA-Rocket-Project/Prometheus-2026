@@ -74,7 +74,6 @@ export default function HealthGrid({ latest }) {
       <HealthRow label="IMU" value="200" unit="Hz" status="ok" />
       <HealthRow label="Barometer" value="50" unit="Hz" status="ok" />
       <HealthRow label="Temp" value={latest.temp?.toFixed(1)} unit="°C" status={latest.temp > 60 ? 'warn' : 'ok'} />
-      <HealthRow label="HDOP" value={latest.hdop?.toFixed(1)} status={latest.hdop < 1.5 ? 'ok' : 'warn'} />
       <HealthRow label="Recovery" value={recoveryLabel} status={recoveryStatus} />
       <BatteryBar voltage={latest.bat} />
     </div>

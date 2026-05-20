@@ -67,6 +67,8 @@ export default function Overview({ latest, history }) {
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
   const markerRef = useRef({ apogeeIdx: -1, nowIdx: -1 });
+  const startWallRef = useRef(null);
+  const startDeviceRef = useRef(null);
 
   const apogeePoint = useMemo(() => {
     let max = null;
@@ -213,11 +215,12 @@ export default function Overview({ latest, history }) {
               maxRotation: 0,
             },
             grid: { color: '#21262d' },
+            title: { display: true, text: 'Time (s)', color: '#8b949e', font: { size: 10 } },
           },
           y: {
             ticks: { color: '#8b949e', font: { family: 'monospace', size: 10 } },
             grid: { color: '#21262d' },
-            title: { display: true, text: 'm (above ground level)', color: '#8b949e', font: { size: 10 } },
+            title: { display: true, text: 'ft (above ground level)', color: '#8b949e', font: { size: 10 } },
           },
         },
       },
@@ -236,26 +239,37 @@ export default function Overview({ latest, history }) {
     const chart = chartInstanceRef.current;
     if (!chart || history.length === 0) return;
 
-    const labels = history.map((p) => p.t.toFixed(1));
+    if (startWallRef.current === null) {
+      startWallRef.current = Date.now();
+      startDeviceRef.current = history[0].t;
+    }
+    const wallStart = startWallRef.current;
+    const deviceStart = startDeviceRef.current;
+
+    const labels = history.map((p) => (p.t - deviceStart).toFixed(1));
     const pred = computeBallisticPrediction(history);
-    const predLabels = pred.map((p) => p.t.toFixed(1));
+    const predLabels = pred.map((p) => (p.t - deviceStart).toFixed(1));
 
     const allLabels = Array.from(new Set([...labels, ...predLabels])).sort((a, b) => +a - +b);
 
     const altMap = {};
-    history.forEach((p) => { altMap[p.t.toFixed(1)] = p.alt; });
+    history.forEach((p) => { altMap[(p.t - deviceStart).toFixed(1)] = p.alt; });
     const predMap = {};
-    pred.forEach((p) => { predMap[p.t.toFixed(1)] = p.alt; });
+    pred.forEach((p) => { predMap[(p.t - deviceStart).toFixed(1)] = p.alt; });
 
     const actualAligned = allLabels.map((l) => altMap[l] ?? null);
     const predAligned = allLabels.map((l) => predMap[l] ?? null);
 
     markerRef.current = {
-      apogeeIdx: allLabels.findIndex((l) => apogeePoint && l === apogeePoint.t.toFixed(1)),
-      nowIdx: allLabels.findIndex((l) => latest && l === latest.t.toFixed(1)),
+      apogeeIdx: allLabels.findIndex((l) => apogeePoint && l === (apogeePoint.t - deviceStart).toFixed(1)),
+      nowIdx: allLabels.findIndex((l) => latest && l === (latest.t - deviceStart).toFixed(1)),
     };
 
-    chart.data.labels = allLabels;
+    const toHMS = (elapsedSec) => {
+      const d = new Date(wallStart + +elapsedSec * 1000);
+      return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
+    };
+    chart.data.labels = allLabels.map(toHMS);
     chart.data.datasets[0].data = actualAligned;
     chart.data.datasets[1].data = predAligned;
     chart.update('none');
@@ -273,13 +287,13 @@ export default function Overview({ latest, history }) {
           label="ALTITUDE"
           value={(latest?.alt ?? 0).toFixed(1)}
           unit="m (above ground level)"
-          sub={`${(latest?.vel ?? 0) >= 0 ? '+' : ''}${(latest?.vel ?? 0).toFixed(1)} m/s`}
+          sub={`${(latest?.vel ?? 0) >= 0 ? '+' : ''}${(latest?.vel ?? 0).toFixed(1)} ft/s`}
           subColor={(latest?.vel ?? 0) >= 0 ? '#3fb950' : '#f85149'}
         />
         <StatCard
           label="VELOCITY"
           value={Math.abs(latest?.vel ?? 0).toFixed(1)}
-          unit="m/s"
+          unit="ft/s"
           sub={(latest?.vel ?? 0) >= 0 ? '▲ ascending' : '▼ Descending'}
           subColor={velColor}
         />
