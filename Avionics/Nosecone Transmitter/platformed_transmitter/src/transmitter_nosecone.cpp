@@ -90,11 +90,11 @@ bool imuReady = false;
 bool radioReady = false;
 bool alt1Ready = false;
 bool alt2Ready = false;
-//int ALT_ELEVATION = 0;
+// int ALT_ELEVATION = 0;
 String logFilename;
 bool sdReady = false;
 
-double ALTITUDE_OFFSET = -580.0; // MOJAVE DESERT SEA LEVEL ALTITUDE OFFSET
+double ALTITUDE_OFFSET = 48.0; // MOJAVE DESERT SEA LEVEL ALTITUDE OFFSET
 
 // ============================================================
 // DATA STRUCTS
