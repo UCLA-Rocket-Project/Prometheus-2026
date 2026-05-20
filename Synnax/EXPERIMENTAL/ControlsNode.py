@@ -168,7 +168,9 @@ def send_serial_command(states: list[int]) -> bool:
     packet = build_packet(states)
     print(f"Packet ready: {packet}")
     try:
-        serial_client.write(packet.encode("utf-8"))
+        # ESP input task reads one command per line and parses on '\n'.
+        serial_client.write((packet + "\n").encode("utf-8"))
+        serial_client.flush()
         return True
     except Exception as err:
         print(f"Serial write failed: {err}")
