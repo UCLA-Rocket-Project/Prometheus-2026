@@ -7,14 +7,14 @@
 // ============================================================
 // PINS - GROUND STATION (WROOM ESP32)
 // ============================================================
-#define SCLK_A_PIN 32
-#define MISO_A_PIN 35
-#define MOSI_A_PIN 25
-#define RADIO_CS 33
-#define RST_RADIO 27
-#define RADIO_DIO1 14
-#define TXEN 17
-#define RXEN 5
+#define SCLK_A_PIN 37
+#define MISO_A_PIN 39
+#define MOSI_A_PIN 36
+#define RADIO_CS 13
+#define RST_RADIO 35
+#define RADIO_DIO1 11 //otherwise try 10
+#define TXEN 5
+#define RXEN 6
 
 // ============================================================
 // CONFIG
