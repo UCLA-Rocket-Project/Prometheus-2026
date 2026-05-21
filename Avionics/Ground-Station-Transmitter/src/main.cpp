@@ -5,38 +5,36 @@
 #include <LoRa.h>
 
 // ============================================================
-// PINS - GROUND STATION (WROOM ESP32)
+// PINS - GROUND STATION
 // ============================================================
 #define SCLK_A_PIN 37
-#define MISO_A_PIN 39
+#define MISO_A_PIN 38
 #define MOSI_A_PIN 36
 #define RADIO_CS 13
 #define RST_RADIO 35
-#define RADIO_DIO1 11 //otherwise try 10
+#define RADIO_DIO0 10
 #define TXEN 5
 #define RXEN 6
 
 // ============================================================
 // CONFIG
 // ============================================================
-#define LORA_FREQ 915E6
+#define LORA_FREQ 910E6
 #define LORA_SPREADING_FACTOR 8
 #define LORA_SIGNAL_BANDWIDTH 250E3
 #define LORA_CODING_RATE 5
 #define LORA_TX_POWER 20
-#define RADIO_PACKET_MAX 220
-#define LOOP_DELAY_MS 100
+#define RADIO_PACKET_MAX 250
+#define DEBUG_PRINT 1
 
 // ============================================================
 // GLOBALS
 // ============================================================
-SPIClass spiA(VSPI);
-
+SPIClass spiA(FSPI);
 bool radioReady = false;
-bool receiving = false;
 
 // ============================================================
-// RADIO CONTROL
+// RADIO
 // ============================================================
 void setTX()
 {
@@ -52,9 +50,6 @@ void setRX()
   delayMicroseconds(100);
 }
 
-// ============================================================
-// INIT
-// ============================================================
 bool initRadio()
 {
   pinMode(TXEN, OUTPUT);
@@ -66,7 +61,7 @@ bool initRadio()
   delay(20);
 
   LoRa.setSPI(spiA);
-  LoRa.setPins(RADIO_CS, RST_RADIO, RADIO_DIO1);
+  LoRa.setPins(RADIO_CS, RST_RADIO, RADIO_DIO0);
 
   if (!LoRa.begin(LORA_FREQ))
   {
@@ -84,130 +79,92 @@ bool initRadio()
 }
 
 // ============================================================
-// SEND
+// PARSE + DISPLAY
+// T,ms,gps_valid,lat,lon,alt_mm,heading,fixType,sats,
+//   imu_valid,ax,ay,az,gx,gy,gz,tempC,
+//   alt1_valid,pressure,altTempC,altitude,
+//   pt_valid,pt0,pt1,pt2
 // ============================================================
-void sendPacket(const String &msg)
+void parseTelemetry(char *raw, int rssi, float snr)
 {
-  if (!radioReady)
-    return;
-  if (msg.length() == 0)
-  {
-    Serial.println("[TX FAIL] empty");
-    return;
-  }
-  if (msg.length() >= RADIO_PACKET_MAX)
-  {
-    Serial.println("[TX FAIL] too long");
-    return;
-  }
-
-  setTX();
-  LoRa.beginPacket();
-  LoRa.print(msg);
-  int state = LoRa.endPacket(false);
-  setRX();
-
-  if (state == 1)
-  {
-    Serial.print("[TX ");
-    Serial.print(msg.length());
-    Serial.print("B] ");
-    Serial.println(msg);
-  }
-  else
-  {
-    Serial.println("[TX FAIL]");
-  }
-}
-
-// ============================================================
-// PARSE + PRINT GPS PACKET
-// format: G,lat,lon,alt_mm,fixType,sats
-// ============================================================
-void parseAndPrintGPS(char *packet, int rssi, float snr)
-{
-  char *fields[6];
+  char *fields[26];
   int count = 0;
 
   char *saveptr = nullptr;
-  char *token = strtok_r(packet, ",", &saveptr);
-  while (token != nullptr && count < 6)
+  char *token = strtok_r(raw, ",", &saveptr);
+  while (token != nullptr && count < 26)
   {
     fields[count++] = token;
     token = strtok_r(nullptr, ",", &saveptr);
   }
 
-  if (count != 6 || strcmp(fields[0], "G") != 0)
+  if (count < 25 || strcmp(fields[0], "T") != 0)
   {
     Serial.print("[RX RAW] ");
-    Serial.println(packet);
+    Serial.println(raw);
     return;
   }
 
-  long lat = atol(fields[1]);
-  long lon = atol(fields[2]);
-  long alt_mm = atol(fields[3]);
-  int fixType = atoi(fields[4]);
-  int sats = atoi(fields[5]);
+  unsigned long ms   = strtoul(fields[1], nullptr, 10);
+  int gps_valid      = atoi(fields[2]);
+  long lat           = atol(fields[3]);
+  long lon           = atol(fields[4]);
+  long alt_mm        = atol(fields[5]);
+  long heading       = atol(fields[6]);
+  unsigned fixType   = (unsigned)atoi(fields[7]);
+  unsigned sats      = (unsigned)atoi(fields[8]);
+  int imu_valid      = atoi(fields[9]);
+  float ax           = atof(fields[10]);
+  float ay           = atof(fields[11]);
+  float az           = atof(fields[12]);
+  float gx           = atof(fields[13]);
+  float gy           = atof(fields[14]);
+  float gz           = atof(fields[15]);
+  float imu_tempC    = atof(fields[16]);
+  int alt1_valid     = atoi(fields[17]);
+  float pressure     = atof(fields[18]);
+  float alt_tempC    = atof(fields[19]);
+  float altitude     = atof(fields[20]);
+  int pt_valid       = atoi(fields[21]);
+  float pt0          = atof(fields[22]);
+  float pt1          = atof(fields[23]);
+  float pt2          = atof(fields[24]);
 
-  Serial.print("[GPS] lat=");
-  Serial.print(lat / 10000000.0, 6);
-  Serial.print(" lon=");
-  Serial.print(lon / 10000000.0, 6);
-  Serial.print(" alt=");
-  Serial.print(alt_mm / 1000.0, 1);
-  Serial.print("m fix=");
-  Serial.print(fixType);
-  Serial.print(" sats=");
-  Serial.print(sats);
-  Serial.print(" RSSI=");
-  Serial.print(rssi);
-  Serial.print(" SNR=");
-  Serial.println(snr, 1);
-}
+#if DEBUG_PRINT
+  Serial.println("-----------------------------");
+  Serial.print("T=");       Serial.print(ms);
+  Serial.print("ms RSSI="); Serial.print(rssi);
+  Serial.print(" SNR=");    Serial.println(snr, 1);
 
-// ============================================================
-// RECEIVE LOOP
-// ============================================================
-void receiveLoop()
-{
-  Serial.println("[RX MODE] Listening for GPS... press X to stop");
-  LoRa.receive();
+  Serial.print("GPS[");     Serial.print(gps_valid);
+  Serial.print("] lat=");   Serial.print(lat / 1e7, 6);
+  Serial.print(" lon=");    Serial.print(lon / 1e7, 6);
+  Serial.print(" alt=");    Serial.print(alt_mm / 1000.0, 1);
+  Serial.print("m hdg=");   Serial.print(heading / 1e5, 1);
+  Serial.print(" fix=");    Serial.print(fixType);
+  Serial.print(" sats=");   Serial.println(sats);
 
-  while (true)
-  {
-    // check for X to exit
-    if (Serial.available())
-    {
-      String cmd = Serial.readStringUntil('\n');
-      cmd.trim();
-      if (cmd == "X" || cmd == "x")
-      {
-        Serial.println("[RX MODE] Stopped. Back to send mode.");
-        receiving = false;
-        return;
-      }
-    }
+  Serial.print("IMU[");     Serial.print(imu_valid);
+  Serial.print("] ax=");    Serial.print(ax, 3);
+  Serial.print(" ay=");     Serial.print(ay, 3);
+  Serial.print(" az=");     Serial.print(az, 3);
+  Serial.print(" gx=");     Serial.print(gx, 3);
+  Serial.print(" gy=");     Serial.print(gy, 3);
+  Serial.print(" gz=");     Serial.print(gz, 3);
+  Serial.print(" temp=");   Serial.println(imu_tempC, 2);
 
-    int packetSize = LoRa.parsePacket();
-    if (packetSize > 0 && packetSize < RADIO_PACKET_MAX)
-    {
-      char packet[RADIO_PACKET_MAX];
-      int index = 0;
-      while (LoRa.available() && index < RADIO_PACKET_MAX - 1)
-      {
-        packet[index++] = (char)LoRa.read();
-      }
-      packet[index] = '\0';
+  Serial.print("ALT1[");    Serial.print(alt1_valid);
+  Serial.print("] pres=");  Serial.print(pressure, 2);
+  Serial.print("mbar temp="); Serial.print(alt_tempC, 2);
+  Serial.print("C alt=");   Serial.print(altitude, 2);
+  Serial.println("m");
 
-      int rssi = LoRa.packetRssi();
-      float snr = LoRa.packetSnr();
-
-      char parseBuf[RADIO_PACKET_MAX];
-      strncpy(parseBuf, packet, RADIO_PACKET_MAX);
-      parseAndPrintGPS(parseBuf, rssi, snr);
-    }
-  }
+  Serial.print("PT[");      Serial.print(pt_valid);
+  Serial.print("] pt0=");   Serial.print(pt0, 2);
+  Serial.print(" pt1=");    Serial.print(pt1, 2);
+  Serial.print(" pt2=");    Serial.println(pt2, 2);
+  Serial.println("-----------------------------");
+#endif
 }
 
 // ============================================================
@@ -216,36 +173,39 @@ void receiveLoop()
 void setup()
 {
   Serial.begin(115200);
-  delay(3000);
+  delay(1000);
 
-  Serial.println("BOOT 1");
   spiA.begin(SCLK_A_PIN, MISO_A_PIN, MOSI_A_PIN, RADIO_CS);
-  Serial.println("BOOT 2");
   radioReady = initRadio();
 
-  Serial.println("Ready. Receiving Data, or 'R' to send command.");
+  if (!radioReady)
+  {
+    Serial.println("[HALT] Radio failed");
+    while (1);
+  }
+
+  LoRa.receive();
+  Serial.println("[RX] Listening for telemetry...");
 }
 
 void loop()
 {
-  Serial.println("Enter instruction (R command mode):");
-  while (Serial.available() == 0)
+  int packetSize = LoRa.parsePacket();
+  if (packetSize > 0 && packetSize < RADIO_PACKET_MAX)
   {
-  }
+    char packet[RADIO_PACKET_MAX];
+    int index = 0;
+    while (LoRa.available() && index < RADIO_PACKET_MAX - 1)
+    {
+      packet[index++] = (char)LoRa.read();
+    }
+    packet[index] = '\0';
 
-  String instruction = Serial.readStringUntil('\n');
-  instruction.trim();
+    int rssi = LoRa.packetRssi();
+    float snr = LoRa.packetSnr();
 
-  if (instruction == "Launch" || instruction == "launch" || instruction == "LAUNCH")
-  {
-    sendPacket(instruction);
+    char parseBuf[RADIO_PACKET_MAX];
+    strncpy(parseBuf, packet, RADIO_PACKET_MAX);
+    parseTelemetry(parseBuf, rssi, snr);
   }
-  else
-  {
-    receiving = true;
-    // sendPacket(""); // tell the nosecone to start transmitting
-    receiveLoop();
-  }
-
-  delay(LOOP_DELAY_MS);
 }
