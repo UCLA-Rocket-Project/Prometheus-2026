@@ -5,17 +5,18 @@
 #include <Wire.h>
 #include <SD.h>
 #include <FS.h>
-
 #include <math.h>
-
-#include <SparkFun_u-blox_GNSS_v3.h>
 #include <Adafruit_ISM330DHCX.h>
 #include <Adafruit_Sensor.h>
+
 // ============================================================
 // PINS
 // ============================================================
 #define GPS_RXD 18
 #define GPS_TXD 8
+
+#define BT_RX 16
+#define BT_TX 15
 
 #define SCLK_A_PIN 48
 #define MISO_A_PIN 35
@@ -26,7 +27,6 @@
 #define TXEN 2
 #define RXEN 1
 
-// SPI BUS B: IMU + ALTIMETERS
 #define SCLK_B 14
 #define MISO_B 12
 #define MOSI_B 13
@@ -36,17 +36,23 @@
 
 #define ALT_CS1 39
 
+#define SD_CS 47
+
 // ============================================================
 // CONFIG
 // ============================================================
 #define SEA_LEVEL_PRESSURE_HPA 1013.25f
-#define LOOP_DELAY_MS 100
+#define LOOP_DELAY_MS 500
 
 #define LORA_FREQ 910E6
 #define LORA_SPREADING_FACTOR 8
 #define LORA_SIGNAL_BANDWIDTH 250E3
 #define LORA_CODING_RATE 5
 #define LORA_TX_POWER 20
+
+#define RADIO_PACKET_MAX 250
+
+#define DEBUG_PRINT 1
 
 // MS5607 commands
 static const uint8_t MS5607_CMD_RESET = 0x1E;
@@ -58,22 +64,20 @@ static const uint8_t MS5607_CMD_CONV_D2 = 0x58; // OSR 4096
 // ============================================================
 // GLOBALS
 // ============================================================
-
-TwoWire gnssWire = TwoWire(0);
-SFE_UBLOX_GNSS gnss;
 Adafruit_ISM330DHCX imu;
 
 bool imuReady = false;
 bool radioReady = false;
 bool alt1Ready = false;
-// int ALT_ELEVATION = 0;
-String logFilename;
 bool sdReady = false;
 
 double ALTITUDE_OFFSET = 48.0; // MOJAVE DESERT SEA LEVEL ALTITUDE OFFSET
 
-// DATA STRUCTS
+String logFilename;
 
+// ============================================================
+// DATA STRUCTS
+// ============================================================
 struct GpsData
 {
   bool valid;
@@ -88,6 +92,7 @@ struct GpsData
   uint8_t minute;
   uint8_t second;
 };
+
 struct ImuData
 {
   bool valid;
@@ -108,17 +113,26 @@ struct AltData
   float altitude_m;
 };
 
+struct PtData
+{
+  bool valid;
+  float pt[3];
+};
+
 struct Telemetry
 {
   uint32_t ms;
   GpsData gps;
   ImuData imu;
   AltData alt1;
+  PtData pt;
 };
 
-#define RADIO_PACKET_MAX 200
-
+// ============================================================
+// HARDWARE INSTANCES
+// ============================================================
 HardwareSerial gpsSerial(1);
+HardwareSerial btSerial(2);
 TinyGPSPlus gps;
 SPIClass spiA(FSPI);
 SPIClass spiB(HSPI);
@@ -147,9 +161,7 @@ public:
     delay(10);
 
     for (int i = 0; i < 8; i++)
-    {
       C[i] = readPROM(i);
-    }
 
     if (C[1] == 0 || C[1] == 0xFFFF || C[2] == 0 || C[2] == 0xFFFF)
     {
@@ -175,18 +187,14 @@ public:
     uint32_t D2 = convertAndRead(MS5607_CMD_CONV_D2);
 
     if (D1 == 0 || D2 == 0)
-    {
       return false;
-    }
 
     int32_t dT = (int32_t)D2 - ((int32_t)C[5] << 8);
     int64_t TEMP = 2000LL + ((int64_t)dT * C[6]) / 8388608LL;
     int64_t OFF = ((int64_t)C[2] << 17) + (((int64_t)C[4] * dT) >> 6);
     int64_t SENS = ((int64_t)C[1] << 16) + (((int64_t)C[3] * dT) >> 7);
 
-    int64_t T2 = 0;
-    int64_t OFF2 = 0;
-    int64_t SENS2 = 0;
+    int64_t T2 = 0, OFF2 = 0, SENS2 = 0;
 
     if (TEMP < 2000)
     {
@@ -211,13 +219,9 @@ public:
     out.pressure_mbar = P / 100.0f;
 
     if (out.pressure_mbar > 0.1f)
-    {
       out.altitude_m = 44330.0f * (1.0f - pow(out.pressure_mbar / SEA_LEVEL_PRESSURE_HPA, 0.19029495718f));
-    }
     else
-    {
       out.altitude_m = NAN;
-    }
 
     out.valid = true;
     return true;
@@ -297,8 +301,6 @@ void setRX()
   delayMicroseconds(100);
 }
 
-// INIT
-
 bool initRadio()
 {
   pinMode(TXEN, OUTPUT);
@@ -311,7 +313,6 @@ bool initRadio()
   digitalWrite(RST_RADIO, HIGH);
   delay(20);
 
-  // spiA.begin(SCLK_A_PIN, MISO_A_PIN, MOSI_A_PIN, RADIO_CS);
   LoRa.setSPI(spiA);
   LoRa.setPins(RADIO_CS, RST_RADIO, RADIO_DIO1);
 
@@ -330,8 +331,9 @@ bool initRadio()
   return true;
 }
 
+// ============================================================
 // IMU
-
+// ============================================================
 bool initIMU()
 {
   pinMode(IMU_CS, OUTPUT);
@@ -354,8 +356,9 @@ bool initIMU()
   return true;
 }
 
-// altimeter
-
+// ============================================================
+// ALTIMETER
+// ============================================================
 bool initAltimeters()
 {
   alt1Ready = altimeter1.begin(&spiB, ALT_CS1);
@@ -365,6 +368,7 @@ bool initAltimeters()
 
   return alt1Ready;
 }
+
 // ============================================================
 // GPS
 // ============================================================
@@ -373,36 +377,101 @@ void initGPS()
   gpsSerial.begin(9600, SERIAL_8N1, GPS_RXD, GPS_TXD);
 }
 
-// void readGPS()
-// {
-//   if (!gps.location.isValid())
-//   {
-//     Serial.println("[TX] No GPS fix");
-//     return;
-//   }
+// ============================================================
+// SD CARD
+// ============================================================
+bool initSD()
+{
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+  delay(10);
 
-//   char packet[128];
-//   int len = snprintf(packet, sizeof(packet),
-//                      "G,%.6f,%.6f,%.1f,%u,%u,%02d:%02d:%02d",
-//                      gps.location.lat(),
-//                      gps.location.lng(),
-//                      gps.altitude.meters(),
-//                      gps.satellites.value(),
-//                      (unsigned)gps.hdop.hdop(),
-//                      gps.time.hour(),
-//                      gps.time.minute(),
-//                      gps.time.second());
+  if (!SD.begin(SD_CS, spiA, 4000000))
+  {
+    Serial.println("[SD] FAIL");
+    return false;
+  }
 
-//   setTX();
-//   LoRa.beginPacket();
-//   LoRa.write((const uint8_t *)packet, len);
-//   LoRa.endPacket(false);
-//   setRX();
+  int n = 0;
+  do
+  {
+    logFilename = "/log" + String(n++) + ".csv";
+  } while (SD.exists(logFilename.c_str()) && n < 1000);
 
-//   Serial.print("[TX] ");
-//   Serial.println(packet);
-// }
+  File f = SD.open(logFilename.c_str(), FILE_WRITE);
+  if (!f)
+  {
+    Serial.println("[SD] Failed to create log file");
+    return false;
+  }
 
+  f.println("type,ms,gps_valid,lat,lon,gps_alt_mm,heading,fix_type,sats,"
+            "imu_valid,ax,ay,az,gx,gy,gz,imu_temp_c,"
+            "alt1_valid,alt1_pressure_mbar,alt1_temp_c,alt1_alt_m,"
+            "pt_valid,pt0,pt1,pt2");
+  f.close();
+
+  Serial.print("[SD] OK, logging to ");
+  Serial.println(logFilename);
+  return true;
+}
+
+void logTelemetryToSD(const Telemetry &t)
+{
+  if (!sdReady)
+    return;
+
+  File f = SD.open(logFilename.c_str(), FILE_APPEND);
+  if (!f)
+  {
+    Serial.println("[SD] Failed to open log file for append");
+    return;
+  }
+
+  char row[RADIO_PACKET_MAX];
+  int len = snprintf(
+      row, sizeof(row),
+      "T,%lu,%d,%ld,%ld,%ld,%ld,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%d,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f",
+      (unsigned long)t.ms,
+      t.gps.valid,
+      (long)t.gps.lat,
+      (long)t.gps.lon,
+      (long)t.gps.alt_mm,
+      (long)t.gps.heading,
+      (unsigned)t.gps.fixType,
+      (unsigned)t.gps.sats,
+      t.imu.valid,
+      t.imu.ax, t.imu.ay, t.imu.az,
+      t.imu.gx, t.imu.gy, t.imu.gz,
+      t.imu.tempC,
+      t.alt1.valid,
+      t.alt1.pressure_mbar,
+      t.alt1.tempC,
+      t.alt1.altitude_m + ALTITUDE_OFFSET,
+      t.pt.valid,
+      t.pt.pt[0], t.pt.pt[1], t.pt.pt[2]);
+
+  if (len <= 0)
+  {
+    Serial.println("[SD] snprintf error");
+    f.close();
+    return;
+  }
+
+  if (len >= (int)sizeof(row))
+  {
+    Serial.println("[SD] row truncated");
+    f.close();
+    return;
+  }
+
+  f.println(row);
+  f.close();
+}
+
+// ============================================================
+// READ FUNCTIONS
+// ============================================================
 void readGPS(GpsData &g)
 {
   while (gpsSerial.available())
@@ -437,11 +506,9 @@ void readIMU(ImuData &i)
   i.ax = accel.acceleration.x;
   i.ay = accel.acceleration.y;
   i.az = accel.acceleration.z;
-
   i.gx = gyro.gyro.x;
   i.gy = gyro.gyro.y;
   i.gz = gyro.gyro.z;
-
   i.tempC = temp.temperature;
   i.valid = true;
 }
@@ -453,6 +520,58 @@ void readAltimeters(AltData &a1)
   if (alt1Ready)
     altimeter1.read(a1);
 }
+
+void readBodyTube(PtData &pt)
+{
+  static char buf[128];
+  static uint8_t pos = 0;
+  static PtData lastGood = {false, {0.0f, 0.0f, 0.0f}};
+
+  pt = lastGood;
+
+  while (btSerial.available())
+  {
+    char c = btSerial.read();
+    if (c == '\n')
+    {
+      buf[pos] = '\0';
+      if (pos > 0 && buf[pos - 1] == '\r')
+        buf[--pos] = '\0';
+      pos = 0;
+
+      float p0 = lastGood.pt[0], p1 = lastGood.pt[1], p2 = lastGood.pt[2];
+      int got = 0;
+      char *s;
+
+      if ((s = strstr(buf, "pt0=")) && sscanf(s, "pt0=%f", &p0) == 1)
+        got++;
+      if ((s = strstr(buf, "pt1=")) && sscanf(s, "pt1=%f", &p1) == 1)
+        got++;
+      if ((s = strstr(buf, "pt2=")) && sscanf(s, "pt2=%f", &p2) == 1)
+        got++;
+
+      if (got > 0)
+      {
+        lastGood.pt[0] = p0;
+        lastGood.pt[1] = p1;
+        lastGood.pt[2] = p2;
+        lastGood.valid = true;
+        pt = lastGood;
+      }
+
+      Serial.printf("[BT] pt0=%.2f pt1=%.2f pt2=%.2f got=%d/3\n", p0, p1, p2, got);
+    }
+    else if (pos < sizeof(buf) - 1)
+    {
+      buf[pos++] = c;
+    }
+    else
+    {
+      pos = 0;
+    }
+  }
+}
+
 Telemetry readTelemetry()
 {
   Telemetry t;
@@ -461,9 +580,11 @@ Telemetry readTelemetry()
   readGPS(t.gps);
   readIMU(t.imu);
   readAltimeters(t.alt1);
+  readBodyTube(t.pt);
 
   return t;
 }
+
 // ============================================================
 // DEBUG PRINT
 // ============================================================
@@ -493,7 +614,16 @@ void printTelemetry(const Telemetry &t)
   Serial.print(" ALT1[");
   Serial.print(t.alt1.valid);
   Serial.print("] ");
-  Serial.println(t.alt1.altitude_m + ALTITUDE_OFFSET, 2);
+  Serial.print(t.alt1.altitude_m + ALTITUDE_OFFSET, 2);
+
+  Serial.print(" PT[");
+  Serial.print(t.pt.valid);
+  Serial.print("] pt0=");
+  Serial.print(t.pt.pt[0], 2);
+  Serial.print(" pt1=");
+  Serial.print(t.pt.pt[1], 2);
+  Serial.print(" pt2=");
+  Serial.println(t.pt.pt[2], 2);
 }
 
 // ============================================================
@@ -508,7 +638,7 @@ void sendTelemetry(const Telemetry &t)
 
   int len = snprintf(
       packet, sizeof(packet),
-      "T,%lu,%d,%ld,%ld,%ld,%ld,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%d,%.2f,%.2f,%.2f",
+      "T,%lu,%d,%ld,%ld,%ld,%ld,%u,%u,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%d,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f",
       (unsigned long)t.ms,
       t.gps.valid,
       (long)t.gps.lat,
@@ -524,7 +654,9 @@ void sendTelemetry(const Telemetry &t)
       t.alt1.valid,
       t.alt1.pressure_mbar,
       t.alt1.tempC,
-      t.alt1.altitude_m + ALTITUDE_OFFSET);
+      t.alt1.altitude_m + ALTITUDE_OFFSET,
+      t.pt.valid,
+      t.pt.pt[0], t.pt.pt[1], t.pt.pt[2]);
 
   if (len <= 0)
   {
@@ -556,81 +688,10 @@ void sendTelemetry(const Telemetry &t)
     Serial.println("[TX FAIL]");
   }
 }
+
 // ============================================================
 // SETUP / LOOP
 // ============================================================
-// void setup()
-// {
-//   Serial.begin(115200);
-//   delay(1000);
-
-//   initGPS();
-//   Serial.println("[GPS] Ready");
-
-//   if (!initRadio())
-//   {
-//     Serial.println("Halting.");
-//     while (1)
-//       ;
-//   }
-// }
-
-// void loop()
-// {
-//   while (gpsSerial.available())
-//   {
-//     gps.encode(gpsSerial.read());
-//   }
-
-//   if (gps.location.isUpdated())
-//   {
-//     Serial.println("=============================");
-//     Serial.print("LAT:  ");
-//     Serial.println(gps.location.lat(), 6);
-//     Serial.print("LNG:  ");
-//     Serial.println(gps.location.lng(), 6);
-//     Serial.print("ALT:  ");
-//     Serial.print(gps.altitude.meters());
-//     Serial.println(" m");
-//     Serial.print("SATS: ");
-//     Serial.println(gps.satellites.value());
-//     Serial.print("HDOP: ");
-//     Serial.println(gps.hdop.hdop());
-//     Serial.print("TIME: ");
-//     Serial.print(gps.time.hour());
-//     Serial.print(":");
-//     Serial.print(gps.time.minute());
-//     Serial.print(":");
-//     Serial.println(gps.time.second());
-
-//     readGPS();
-
-//     Serial.println("[TX] Packet sent");
-//     Serial.println("=============================");
-//   }
-// }
-
-// void setup()
-// {
-//   Serial.begin(115200);
-//   delay(1000);
-
-//   initGPS();
-//   Serial.println("[GPS] Ready");
-
-//   imuReady = initIMU();
-//   alt1Ready = initAltimeters();
-//   radioReady = initRadio();
-
-//   if (!radioReady)
-//   {
-//     Serial.println("[HALT] Radio failed");
-//     while (1)
-//       ;
-//   }
-
-//   Serial.println("[SYS] All init done");
-// }
 void setup()
 {
   Serial.begin(115200);
@@ -639,21 +700,25 @@ void setup()
   spiA.begin(SCLK_A_PIN, MISO_A_PIN, MOSI_A_PIN, RADIO_CS);
   spiB.begin(SCLK_B, MISO_B, MOSI_B, IMU_CS);
 
+  btSerial.begin(115200, SERIAL_8N1, BT_RX, BT_TX);
+  Serial.println("[BT] UART ready");
+
   initGPS();
   Serial.println("[GPS] Ready");
 
   imuReady = initIMU();
   alt1Ready = initAltimeters();
   radioReady = initRadio();
+  sdReady = initSD();
 
   if (!radioReady)
     Serial.println("[WARN] Radio not ready, continuing anyway");
-
   if (!imuReady)
     Serial.println("[WARN] IMU not ready, continuing anyway");
-
   if (!alt1Ready)
     Serial.println("[WARN] ALT1 not ready, continuing anyway");
+  if (!sdReady)
+    Serial.println("[WARN] SD not ready, continuing anyway");
 
   Serial.println("[SYS] Init done");
   Serial.println("=============================");
@@ -665,16 +730,23 @@ void setup()
   Serial.println(imuReady ? "OK" : "FAIL");
   Serial.print("[ALT1] ");
   Serial.println(alt1Ready ? "OK" : "FAIL");
+  Serial.print("[SD]   ");
+  Serial.println(sdReady ? "OK" : "FAIL");
   Serial.println("=============================");
 }
+
 void loop()
 {
   Telemetry t = readTelemetry();
 
+#if DEBUG_PRINT
   Serial.println("-----------------------------");
   printTelemetry(t);
-  sendTelemetry(t);
   Serial.println("-----------------------------");
+#endif
 
-  delay(500);
+  sendTelemetry(t);
+  logTelemetryToSD(t);
+
+  delay(LOOP_DELAY_MS);
 }
