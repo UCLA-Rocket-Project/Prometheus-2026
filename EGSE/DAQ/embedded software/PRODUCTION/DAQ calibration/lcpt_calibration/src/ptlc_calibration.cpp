@@ -184,7 +184,7 @@ static void liveReadChannel(SensorType type, int channel) {
       continue;
     }
     Serial.print("Current raw average = ");
-    Serial.println(raw * 100000.0f, 8);
+    Serial.println(raw, 8);
   }
 }
 
@@ -216,7 +216,7 @@ static void liveReadAllChannels() {
       Serial.print("LC");
       Serial.print(channel);
       Serial.print("=");
-      Serial.print(readRawAverage(SENSOR_LC, channel, 3) * 100000.0f, 1);
+      Serial.print(readRawAverage(SENSOR_LC, channel, 3), 1);
     }
 
     Serial.println();
@@ -346,7 +346,7 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
         Serial.print(type == SENSOR_PT ? "PT" : "LC");
         Serial.print(channel);
         Serial.print(" = ");
-        Serial.println(raw * 100000.0f, 8);
+        Serial.println(raw, 8);
       }
       Serial.println("===============================");
       Serial.println();
@@ -368,7 +368,7 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
             Serial.print(type == SENSOR_PT ? "PT" : "LC");
             Serial.print(channels[channelIndex]);
             Serial.print(" raw = ");
-            Serial.print(rawValsByChannel[channelIndex][i] * 100000.0f, 8);
+            Serial.print(rawValsByChannel[channelIndex][i], 8);
           }
           Serial.println();
         }
@@ -393,7 +393,7 @@ static void calibrateChannelBatch(SensorType type, const std::vector<int>& chann
       Serial.print(type == SENSOR_PT ? "PT" : "LC");
       Serial.print(channel);
       Serial.print(" = ");
-      Serial.println(raw * 100000.0f, 8);
+      Serial.println(raw, 8);
     }
 
   }
