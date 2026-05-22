@@ -85,49 +85,99 @@ bool parseTelemetryPacket(char *packet, Telemetry &t)
     token = strtok_r(nullptr, ",", &saveptr);
   }
 
-  if (fieldCount != EXPECTED_FIELDS)
-  {
-    Serial.print("Parse fail: expected ");
-    Serial.print(EXPECTED_FIELDS);
-    Serial.print(" fields, got ");
-    Serial.println(fieldCount);
-    return false;
-  }
-
-  if (strcmp(fields[0], "T") != 0)
+  if (fieldCount < 1 || strcmp(fields[0], "T") != 0)
   {
     Serial.println("Parse fail: packet does not start with T");
     return false;
   }
 
-  t.ms = strtoul(fields[1], nullptr, 10);
+  if (fieldCount != EXPECTED_FIELDS)
+  {
+    Serial.print("Parse warn: expected ");
+    Serial.print(EXPECTED_FIELDS);
+    Serial.print(" fields, got ");
+    Serial.print(fieldCount);
+    Serial.println(" — missing fields will show NaN");
+  }
 
-  t.gpsValid = atoi(fields[2]);
-  t.lat = atol(fields[3]);
-  t.lon = atol(fields[4]);
-  t.gpsAltMm = atol(fields[5]);
-  t.heading = atol(fields[6]);
-  t.fixType = (unsigned int)strtoul(fields[7], nullptr, 10);
-  t.sats = (unsigned int)strtoul(fields[8], nullptr, 10);
+  // Default everything so partial packets still print
+  t.ms = 0;
+  t.gpsValid = 0;
+  t.lat = 0;
+  t.lon = 0;
+  t.gpsAltMm = 0;
+  t.heading = 0;
+  t.fixType = 0;
+  t.sats = 0;
+  t.imuValid = 0;
+  t.ax = NAN;
+  t.ay = NAN;
+  t.az = NAN;
+  t.gx = NAN;
+  t.gy = NAN;
+  t.gz = NAN;
+  t.imuTempC = NAN;
+  t.alt1Valid = 0;
+  t.alt1Pressure = NAN;
+  t.alt1TempC = NAN;
+  t.alt1AltM = NAN;
+  t.alt2Valid = 0;
+  t.alt2Pressure = NAN;
+  t.alt2TempC = NAN;
+  t.alt2AltM = NAN;
 
-  t.imuValid = atoi(fields[9]);
-  t.ax = atof(fields[10]);
-  t.ay = atof(fields[11]);
-  t.az = atof(fields[12]);
-  t.gx = atof(fields[13]);
-  t.gy = atof(fields[14]);
-  t.gz = atof(fields[15]);
-  t.imuTempC = atof(fields[16]);
+  if (fieldCount > 1)
+    t.ms = strtoul(fields[1], nullptr, 10);
 
-  t.alt1Valid = atoi(fields[17]);
-  t.alt1Pressure = atof(fields[18]);
-  t.alt1TempC = atof(fields[19]);
-  t.alt1AltM = atof(fields[20]);
+  if (fieldCount > 2)
+    t.gpsValid = atoi(fields[2]);
+  if (fieldCount > 3)
+    t.lat = atol(fields[3]);
+  if (fieldCount > 4)
+    t.lon = atol(fields[4]);
+  if (fieldCount > 5)
+    t.gpsAltMm = atol(fields[5]);
+  if (fieldCount > 6)
+    t.heading = atol(fields[6]);
+  if (fieldCount > 7)
+    t.fixType = (unsigned int)strtoul(fields[7], nullptr, 10);
+  if (fieldCount > 8)
+    t.sats = (unsigned int)strtoul(fields[8], nullptr, 10);
 
-  t.alt2Valid = atoi(fields[21]);
-  t.alt2Pressure = atof(fields[22]);
-  t.alt2TempC = atof(fields[23]);
-  t.alt2AltM = atof(fields[24]);
+  if (fieldCount > 9)
+    t.imuValid = atoi(fields[9]);
+  if (fieldCount > 10)
+    t.ax = atof(fields[10]);
+  if (fieldCount > 11)
+    t.ay = atof(fields[11]);
+  if (fieldCount > 12)
+    t.az = atof(fields[12]);
+  if (fieldCount > 13)
+    t.gx = atof(fields[13]);
+  if (fieldCount > 14)
+    t.gy = atof(fields[14]);
+  if (fieldCount > 15)
+    t.gz = atof(fields[15]);
+  if (fieldCount > 16)
+    t.imuTempC = atof(fields[16]);
+
+  if (fieldCount > 17)
+    t.alt1Valid = atoi(fields[17]);
+  if (fieldCount > 18)
+    t.alt1Pressure = atof(fields[18]);
+  if (fieldCount > 19)
+    t.alt1TempC = atof(fields[19]);
+  if (fieldCount > 20)
+    t.alt1AltM = atof(fields[20]);
+
+  if (fieldCount > 21)
+    t.alt2Valid = atoi(fields[21]);
+  if (fieldCount > 22)
+    t.alt2Pressure = atof(fields[22]);
+  if (fieldCount > 23)
+    t.alt2TempC = atof(fields[23]);
+  if (fieldCount > 24)
+    t.alt2AltM = atof(fields[24]);
 
   return true;
 }
@@ -250,9 +300,5 @@ void loop()
   if (parseTelemetryPacket(parseBuffer, t))
   {
     printTelemetry(t, rssi, snr);
-  }
-  else
-  {
-    Serial.println("Telemetry parse failed.");
   }
 }
