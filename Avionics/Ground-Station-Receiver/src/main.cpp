@@ -98,71 +98,152 @@ void parseTelemetry(char *raw, int rssi, float snr)
     token = strtok_r(nullptr, ",", &saveptr);
   }
 
-  if (count < 25 || strcmp(fields[0], "T") != 0)
+  if (count < 1 || strcmp(fields[0], "T") != 0)
   {
-    Serial.print("[RX RAW] ");
-    Serial.println(raw);
+    Serial.println("Parse fail: packet does not start with T");
     return;
   }
 
-  unsigned long ms   = strtoul(fields[1], nullptr, 10);
-  int gps_valid      = atoi(fields[2]);
-  long lat           = atol(fields[3]);
-  long lon           = atol(fields[4]);
-  long alt_mm        = atol(fields[5]);
-  long heading       = atol(fields[6]);
-  unsigned fixType   = (unsigned)atoi(fields[7]);
-  unsigned sats      = (unsigned)atoi(fields[8]);
-  int imu_valid      = atoi(fields[9]);
-  float ax           = atof(fields[10]);
-  float ay           = atof(fields[11]);
-  float az           = atof(fields[12]);
-  float gx           = atof(fields[13]);
-  float gy           = atof(fields[14]);
-  float gz           = atof(fields[15]);
-  float imu_tempC    = atof(fields[16]);
-  int alt1_valid     = atoi(fields[17]);
-  float pressure     = atof(fields[18]);
-  float alt_tempC    = atof(fields[19]);
-  float altitude     = atof(fields[20]);
-  int pt_valid       = atoi(fields[21]);
-  float pt0          = atof(fields[22]);
-  float pt1          = atof(fields[23]);
-  float pt2          = atof(fields[24]);
+  if (count < 25)
+  {
+    Serial.print("Parse warn: expected 25 fields, got ");
+    Serial.print(count);
+    Serial.println(" — missing fields will show NaN");
+  }
+
+  unsigned long ms = 0;
+  int gps_valid = 0;
+  long lat = 0;
+  long lon = 0;
+  long alt_mm = 0;
+  long heading = 0;
+  unsigned fixType = 0;
+  unsigned sats = 0;
+  int imu_valid = 0;
+  float ax = NAN;
+  float ay = NAN;
+  float az = NAN;
+  float gx = NAN;
+  float gy = NAN;
+  float gz = NAN;
+  float imu_tempC = NAN;
+  int alt1_valid = 0;
+  float pressure = NAN;
+  float alt_tempC = NAN;
+  float altitude = NAN;
+  int pt_valid = 0;
+  float pt0 = NAN;
+  float pt1 = NAN;
+  float pt2 = NAN;
+
+  if (count > 1)
+    ms = strtoul(fields[1], nullptr, 10);
+  if (count > 2)
+    gps_valid = atoi(fields[2]);
+  if (count > 3)
+    lat = atol(fields[3]);
+  if (count > 4)
+    lon = atol(fields[4]);
+  if (count > 5)
+    alt_mm = atol(fields[5]);
+  if (count > 6)
+    heading = atol(fields[6]);
+  if (count > 7)
+    fixType = (unsigned)atoi(fields[7]);
+  if (count > 8)
+    sats = (unsigned)atoi(fields[8]);
+  if (count > 9)
+    imu_valid = atoi(fields[9]);
+  if (count > 10)
+    ax = atof(fields[10]);
+  if (count > 11)
+    ay = atof(fields[11]);
+  if (count > 12)
+    az = atof(fields[12]);
+  if (count > 13)
+    gx = atof(fields[13]);
+  if (count > 14)
+    gy = atof(fields[14]);
+  if (count > 15)
+    gz = atof(fields[15]);
+  if (count > 16)
+    imu_tempC = atof(fields[16]);
+  if (count > 17)
+    alt1_valid = atoi(fields[17]);
+  if (count > 18)
+    pressure = atof(fields[18]);
+  if (count > 19)
+    alt_tempC = atof(fields[19]);
+  if (count > 20)
+    altitude = atof(fields[20]);
+  if (count > 21)
+    pt_valid = atoi(fields[21]);
+  if (count > 22)
+    pt0 = atof(fields[22]);
+  if (count > 23)
+    pt1 = atof(fields[23]);
+  if (count > 24)
+    pt2 = atof(fields[24]);
 
 #if DEBUG_PRINT
   Serial.println("-----------------------------");
-  Serial.print("T=");       Serial.print(ms);
-  Serial.print("ms RSSI="); Serial.print(rssi);
-  Serial.print(" SNR=");    Serial.println(snr, 1);
+  Serial.print("T=");
+  Serial.print(ms);
+  Serial.print("ms RSSI=");
+  Serial.print(rssi);
+  Serial.print(" SNR=");
+  Serial.println(snr, 1);
 
-  Serial.print("GPS[");     Serial.print(gps_valid);
-  Serial.print("] lat=");   Serial.print(lat / 1e7, 6);
-  Serial.print(" lon=");    Serial.print(lon / 1e7, 6);
-  Serial.print(" alt=");    Serial.print(alt_mm / 1000.0, 1);
-  Serial.print("m hdg=");   Serial.print(heading / 1e5, 1);
-  Serial.print(" fix=");    Serial.print(fixType);
-  Serial.print(" sats=");   Serial.println(sats);
+  Serial.print("GPS[");
+  Serial.print(gps_valid);
+  Serial.print("] lat=");
+  Serial.print(lat / 1e7, 6);
+  Serial.print(" lon=");
+  Serial.print(lon / 1e7, 6);
+  Serial.print(" alt=");
+  Serial.print(alt_mm / 1000.0, 1);
+  Serial.print("m hdg=");
+  Serial.print(heading / 1e5, 1);
+  Serial.print(" fix=");
+  Serial.print(fixType);
+  Serial.print(" sats=");
+  Serial.println(sats);
 
-  Serial.print("IMU[");     Serial.print(imu_valid);
-  Serial.print("] ax=");    Serial.print(ax, 3);
-  Serial.print(" ay=");     Serial.print(ay, 3);
-  Serial.print(" az=");     Serial.print(az, 3);
-  Serial.print(" gx=");     Serial.print(gx, 3);
-  Serial.print(" gy=");     Serial.print(gy, 3);
-  Serial.print(" gz=");     Serial.print(gz, 3);
-  Serial.print(" temp=");   Serial.println(imu_tempC, 2);
+  Serial.print("IMU[");
+  Serial.print(imu_valid);
+  Serial.print("] ax=");
+  Serial.print(ax, 3);
+  Serial.print(" ay=");
+  Serial.print(ay, 3);
+  Serial.print(" az=");
+  Serial.print(az, 3);
+  Serial.print(" gx=");
+  Serial.print(gx, 3);
+  Serial.print(" gy=");
+  Serial.print(gy, 3);
+  Serial.print(" gz=");
+  Serial.print(gz, 3);
+  Serial.print(" temp=");
+  Serial.println(imu_tempC, 2);
 
-  Serial.print("ALT1[");    Serial.print(alt1_valid);
-  Serial.print("] pres=");  Serial.print(pressure, 2);
-  Serial.print("mbar temp="); Serial.print(alt_tempC, 2);
-  Serial.print("C alt=");   Serial.print(altitude, 2);
+  Serial.print("ALT1[");
+  Serial.print(alt1_valid);
+  Serial.print("] pres=");
+  Serial.print(pressure, 2);
+  Serial.print("mbar temp=");
+  Serial.print(alt_tempC, 2);
+  Serial.print("C alt=");
+  Serial.print(altitude, 2);
   Serial.println("m");
 
-  Serial.print("PT[");      Serial.print(pt_valid);
-  Serial.print("] pt0=");   Serial.print(pt0, 2);
-  Serial.print(" pt1=");    Serial.print(pt1, 2);
-  Serial.print(" pt2=");    Serial.println(pt2, 2);
+  Serial.print("PT[");
+  Serial.print(pt_valid);
+  Serial.print("] pt0=");
+  Serial.print(pt0, 2);
+  Serial.print(" pt1=");
+  Serial.print(pt1, 2);
+  Serial.print(" pt2=");
+  Serial.println(pt2, 2);
   Serial.println("-----------------------------");
 #endif
 }
@@ -181,7 +262,8 @@ void setup()
   if (!radioReady)
   {
     Serial.println("[HALT] Radio failed");
-    while (1);
+    while (1)
+      ;
   }
 
   LoRa.receive();
