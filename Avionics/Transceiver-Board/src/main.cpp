@@ -38,6 +38,14 @@
 
 #define SD_CS 47
 
+// =======================
+// BUZZER INIT
+// =======================
+int buzzerPin = 40;
+
+const int buzzerChannel = 0;
+const int resolution = 8;
+
 // ============================================================
 // CONFIG
 // ============================================================
@@ -284,6 +292,21 @@ private:
 
 MS5607 altimeter1;
 
+void beep(int freq, int durationMs)
+{
+  ledcWriteTone(buzzerChannel, freq);
+
+  // MAX DUTY CYCLE = louder
+  ledcWrite(buzzerChannel, 255);
+
+  delay(durationMs);
+
+  ledcWriteTone(buzzerChannel, 0);
+  ledcWrite(buzzerChannel, 0);
+
+  delay(100);
+}
+
 // ============================================================
 // RADIO
 // ============================================================
@@ -319,6 +342,14 @@ bool initRadio()
   if (!LoRa.begin(LORA_FREQ))
   {
     Serial.println("[LORA] FAIL");
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(2000);
     return false;
   }
 
@@ -342,7 +373,9 @@ bool initIMU()
   if (!imu.begin_SPI(IMU_CS, &spiB))
   {
     Serial.println("[IMU] FAIL");
+    beep(4000, 150);
     delay(200);
+    beep(4000, 150);
     delay(2000);
     return false;
   }
@@ -364,6 +397,16 @@ bool initAltimeters()
   alt1Ready = altimeter1.begin(&spiB, ALT_CS1);
 
   Serial.print("[ALT1] ");
+  if (!alt1Ready)
+  {
+    Serial.println("FAIL");
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(2000);
+  }
   Serial.println(alt1Ready ? "OK" : "FAIL");
 
   return alt1Ready;
@@ -389,6 +432,17 @@ bool initSD()
   if (!SD.begin(SD_CS, spiA, 4000000))
   {
     Serial.println("[SD] FAIL");
+    Serial.println("Playing SD failed Buzzer");
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    delay(200);
+    beep(4000, 150);
+    Serial.println("Done Playing SD failed Buzzer");
     return false;
   }
 
@@ -696,6 +750,9 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
+
+  ledcSetup(buzzerChannel, 2000, resolution);
+  ledcAttachPin(buzzerPin, buzzerChannel);
 
   spiA.begin(SCLK_A_PIN, MISO_A_PIN, MOSI_A_PIN, RADIO_CS);
   spiB.begin(SCLK_B, MISO_B, MOSI_B, IMU_CS);
