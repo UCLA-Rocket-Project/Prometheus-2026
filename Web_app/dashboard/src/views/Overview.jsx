@@ -63,6 +63,70 @@ function computeBallisticPrediction(history) {
   return points;
 }
 
+function DescentRateStatus({ latest, history }) {
+  const phase = latest?.phase ?? 'pad';
+  const phaseOrder = ['pad', 'powered', 'coasting', 'apogee', 'drogue', 'main', 'landed'];
+  const pi = phaseOrder.indexOf(phase);
+
+  const launchActive = pi >= 1;
+  const apogeeActive = pi >= 3;
+
+  const maxAltFt = useMemo(
+    () => Math.max(0, ...history.map((p) => p.alt ?? 0)) * 3.28084,
+    [history]
+  );
+
+  // Light up drogue once actual descent rate hits 75 ft/s
+  const drogueActive = useMemo(
+    () => history.some((p) => p.vel < 0 && Math.abs(p.vel) >= 65),
+    [history]
+  );
+
+  // Light up main once descent rate has slowed to ~24.5 ft/s
+  const mainActive = useMemo(
+    () => history.some((p) => p.vel < 0 && Math.abs(p.vel) <= 35 && Math.abs(p.vel) >= 10),
+    [history]
+  );
+
+  const Row = ({ label, active, color, bigValue, bigUnit, tag }) => (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '10px 14px',
+      borderRadius: 6,
+      background: active ? `${color}18` : 'transparent',
+      border: `1px solid ${active ? `${color}55` : '#21262d'}`,
+      marginBottom: 8,
+    }}>
+      <div>
+        <div style={{ color: active ? color : '#8b949e', fontSize: 11, letterSpacing: 1 }}>{label}</div>
+        {bigValue != null && (
+          <div style={{ color: active ? '#e6edf3' : '#8b949e', fontSize: 26, fontFamily: 'monospace', fontWeight: 700, marginTop: 2 }}>
+            {bigValue} <span style={{ fontSize: 13, color: '#8b949e' }}>{bigUnit}</span>
+          </div>
+        )}
+      </div>
+      {active && (
+        <div style={{ color, fontSize: 11, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block' }} />
+          {tag}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 8, padding: '16px 20px' }}>
+      <div style={{ color: '#8b949e', fontSize: 12, letterSpacing: 1, marginBottom: 12 }}>FLIGHT STATUS</div>
+      <Row label="LAUNCH DETECTED" active={launchActive} color="#f0883e" tag="DETECTED" />
+      <Row label="APOGEE" active={apogeeActive} color="#bc8cff" bigValue={apogeeActive ? maxAltFt.toFixed(0) : null} bigUnit="ft" tag="REACHED" />
+      <Row label="DROGUE" active={drogueActive} color="#e3b341" bigValue="75.0" bigUnit="ft/s" tag="ACTIVE" />
+      <Row label="MAIN" active={mainActive} color="#3fb950" bigValue="24.5" bigUnit="ft/s" tag="ACTIVE" />
+    </div>
+  );
+}
+
 export default function Overview({ latest, history }) {
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -364,8 +428,9 @@ export default function Overview({ latest, history }) {
           </div>
         </div>
 
-        <div style={{ flex: 1, minWidth: 220 }}>
+        <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <HealthGrid latest={latest} />
+          <DescentRateStatus latest={latest} history={history} />
         </div>
       </div>
     </div>
