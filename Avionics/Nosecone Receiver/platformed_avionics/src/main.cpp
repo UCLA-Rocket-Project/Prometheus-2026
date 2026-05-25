@@ -189,7 +189,7 @@ void printTelemetry(const Telemetry &t, int rssi, float snr)
 {
   Serial.print("SENDING: nosecone_data ");
   Serial.print("baro_alt=");
-  Serial.print(t.alt1AltM * 3.28084, 2);
+  Serial.print((t.alt1AltM * 3.28084) - 2150, 2);
   Serial.print(",ax=");
   Serial.print(t.ax, 2);
   Serial.print(",ay=");

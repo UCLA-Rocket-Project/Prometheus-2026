@@ -62,6 +62,8 @@ const int resolution = 8;
 
 #define DEBUG_PRINT 1
 
+#define AUTO_LOG_TIMEOUT_MS (90UL * 1000UL) // auto-arm SD after 1.5 min if no launch command
+
 // MS5607 commands
 static const uint8_t MS5607_CMD_RESET = 0x1E;
 static const uint8_t MS5607_CMD_ADC_READ = 0x00;
@@ -78,6 +80,8 @@ bool imuReady = false;
 bool radioReady = false;
 bool alt1Ready = false;
 bool sdReady = false;
+bool sdLoggingEnabled = false; // set to true when "launch" command received over LoRa
+unsigned long setupCompleteMs = 0;
 
 double ALTITUDE_OFFSET = 48.0; // MOJAVE DESERT SEA LEVEL ALTITUDE OFFSET
 
@@ -472,7 +476,7 @@ bool initSD()
 
 void logTelemetryToSD(const Telemetry &t)
 {
-  if (!sdReady)
+  if (!sdReady || !sdLoggingEnabled)
     return;
 
   File f = SD.open(logFilename.c_str(), FILE_APPEND);
@@ -744,6 +748,61 @@ void sendTelemetry(const Telemetry &t)
 }
 
 // ============================================================
+// COMMAND LISTENER
+// ============================================================
+void checkForLaunchCommand(unsigned long windowMs)
+{
+  if (!sdLoggingEnabled && (millis() - setupCompleteMs >= AUTO_LOG_TIMEOUT_MS))
+  {
+    sdLoggingEnabled = true;
+    Serial.println("[CMD] AUTO-LAUNCH: 3-min timeout — SD logging enabled.");
+    beep(1000, 500);
+    delay(100);
+    beep(1000, 500);
+    delay(100);
+    beep(1000, 500);
+  }
+
+  if (!radioReady || sdLoggingEnabled)
+  {
+    delay(windowMs);
+    return;
+  }
+
+  LoRa.receive();
+  unsigned long start = millis();
+  while (millis() - start < windowMs)
+  {
+    int sz = LoRa.parsePacket();
+    if (sz > 0 && sz < 32)
+    {
+      char buf[32];
+      int i = 0;
+      while (LoRa.available() && i < 31)
+        buf[i++] = (char)LoRa.read();
+      buf[i] = '\0';
+
+      while (i > 0 && (buf[i - 1] == '\r' || buf[i - 1] == '\n' || buf[i - 1] == ' '))
+        buf[--i] = '\0';
+
+      Serial.print("[RX CMD] '");
+      Serial.print(buf);
+      Serial.println("'");
+
+      if (strcmp(buf, "launch") == 0)
+      {
+        sdLoggingEnabled = true;
+        Serial.println("[CMD] LAUNCH received — SD logging enabled.");
+        beep(1500, 300);
+        delay(100);
+        beep(1500, 300);
+      }
+    }
+    delay(5);
+  }
+}
+
+// ============================================================
 // SETUP / LOOP
 // ============================================================
 void setup()
@@ -790,6 +849,7 @@ void setup()
   Serial.print("[SD]   ");
   Serial.println(sdReady ? "OK" : "FAIL");
   Serial.println("=============================");
+  setupCompleteMs = millis();
 }
 
 void loop()
@@ -805,5 +865,7 @@ void loop()
   sendTelemetry(t);
   logTelemetryToSD(t);
 
-  delay(LOOP_DELAY_MS);
+  // Use the loop delay as a receive window to listen for commands from ground station.
+  // Once "launch" is received, checkForLaunchCommand just delays and returns immediately.
+  checkForLaunchCommand(LOOP_DELAY_MS);
 }

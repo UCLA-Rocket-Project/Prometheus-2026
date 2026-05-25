@@ -32,6 +32,8 @@
 // ============================================================
 SPIClass spiA(FSPI);
 bool radioReady = false;
+bool launched = false;
+String serialBuf = "";
 
 // ============================================================
 // RADIO
@@ -249,6 +251,61 @@ void parseTelemetry(char *raw, int rssi, float snr)
 }
 
 // ============================================================
+// COMMAND SENDER
+// ============================================================
+void sendCommand(const String &cmd)
+{
+  Serial.print("[TX CMD] '");
+  Serial.print(cmd);
+  Serial.println("'");
+
+  setTX();
+  LoRa.beginPacket();
+  LoRa.print(cmd);
+  LoRa.endPacket(false);
+  setRX();
+  LoRa.receive();
+
+  if (cmd == "launch")
+  {
+    // Retry 3 more times 300ms apart to survive transceiver TX windows (~150ms every ~650ms)
+    for (int retry = 0; retry < 3; retry++)
+    {
+      delay(300);
+      setTX();
+      LoRa.beginPacket();
+      LoRa.print(cmd);
+      LoRa.endPacket(false);
+      setRX();
+      LoRa.receive();
+    }
+    launched = true;
+    Serial.println("[CMD] Launch sent (x4, 300ms apart) — SD logging active on rocket.");
+    Serial.println("[RX] Now displaying full telemetry.");
+    Serial.println("=============================");
+  }
+}
+
+void checkSerialCommand()
+{
+  while (Serial.available())
+  {
+    char c = (char)Serial.read();
+    if (c == '\n')
+    {
+      serialBuf.trim();
+      if (serialBuf.length() > 0)
+        sendCommand(serialBuf);
+      serialBuf = "";
+    }
+    else if (c != '\r')
+    {
+      serialBuf += c;
+    }
+  }
+}
+
+// ============================================================
 // SETUP / LOOP
 // ============================================================
 void setup()
@@ -268,26 +325,47 @@ void setup()
 
   LoRa.receive();
   Serial.println("[RX] Listening for telemetry...");
+  Serial.println("=============================");
+  Serial.println("[CMD] Type a string + Enter to send to rocket.");
+  Serial.println("[CMD] Send 'launch' to enable SD logging and full telemetry display.");
+  Serial.println("=============================");
 }
 
 void loop()
 {
+  if (!launched)
+    checkSerialCommand();
+
   int packetSize = LoRa.parsePacket();
   if (packetSize > 0 && packetSize < RADIO_PACKET_MAX)
   {
     char packet[RADIO_PACKET_MAX];
     int index = 0;
     while (LoRa.available() && index < RADIO_PACKET_MAX - 1)
-    {
       packet[index++] = (char)LoRa.read();
-    }
     packet[index] = '\0';
 
     int rssi = LoRa.packetRssi();
     float snr = LoRa.packetSnr();
 
-    char parseBuf[RADIO_PACKET_MAX];
-    strncpy(parseBuf, packet, RADIO_PACKET_MAX);
-    parseTelemetry(parseBuf, rssi, snr);
+    if (launched)
+    {
+      char parseBuf[RADIO_PACKET_MAX];
+      strncpy(parseBuf, packet, RADIO_PACKET_MAX);
+      parseTelemetry(parseBuf, rssi, snr);
+    }
+    else
+    {
+      // Pre-launch: show link health + prompt, don't parse full telemetry
+      char preview[61] = {0};
+      strncpy(preview, packet, 60);
+      Serial.print("[PKT RSSI=");
+      Serial.print(rssi);
+      Serial.print(" SNR=");
+      Serial.print(snr, 1);
+      Serial.print("] ");
+      Serial.println(preview);
+      Serial.println("  >> Send 'launch' to begin SD logging and full telemetry display.");
+    }
   }
 }
