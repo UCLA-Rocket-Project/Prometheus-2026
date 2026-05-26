@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/meghjoshi/Prometheus-2026 -name \"decode.py\" -o -name \"types.py\" 2>/dev/null | head -20)",
+      "Read(//Users/meghjoshi/Prometheus-2026/**)"
+    ]
+  }
+}
