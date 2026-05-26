@@ -41,7 +41,7 @@ function RssiBar({ rssi }) {
   );
 }
 
-export default function StatusBar({ latest, flightTime, connected }) {
+export default function StatusBar({ latest, flightTime, connected, replayMode }) {
   const phase = latest?.phase ?? 'pad';
   const phaseStyle = PHASE_COLORS[phase] ?? PHASE_COLORS.pad;
   const rssi = latest?.rssi ?? -120;
@@ -81,21 +81,28 @@ export default function StatusBar({ latest, flightTime, connected }) {
 
         <RssiBar rssi={rssi} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: connected ? '#3fb950' : '#f85149',
-              position: 'relative',
-            }}
-            className={connected ? 'pulse-dot' : ''}
-          />
-          <span style={{ fontSize: 11, color: connected ? '#3fb950' : '#f85149' }}>
-            {connected ? 'LIVE' : 'NO SIGNAL'}
-          </span>
-        </div>
+        {replayMode ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#58a6ff' }} />
+            <span style={{ fontSize: 11, color: '#58a6ff', letterSpacing: 0.5 }}>REPLAY</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: connected ? '#3fb950' : '#f85149',
+                position: 'relative',
+              }}
+              className={connected ? 'pulse-dot' : ''}
+            />
+            <span style={{ fontSize: 11, color: connected ? '#3fb950' : '#f85149' }}>
+              {connected ? 'LIVE' : 'NO SIGNAL'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

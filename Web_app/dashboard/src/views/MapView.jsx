@@ -210,7 +210,7 @@ export default function MapView({ latest, history, padCoords }) {
           {[
             { label: 'Lat', value: `${(latest?.lat ?? padLat).toFixed(4)}° N` },
             { label: 'Lon', value: `${Math.abs(latest?.lon ?? padLon).toFixed(4)}° W` },
-            { label: 'Alt (GPS)', value: `${(latest?.alt ?? 0).toFixed(0)} m` },
+            { label: 'Alt (GPS)', value: latest?.gps_alt != null ? `${latest.gps_alt.toFixed(0)} m` : '— m' },
           ].map((r) => (
             <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #21262d' }}>
               <span style={{ color: '#8b949e', fontSize: 12 }}>{r.label}</span>

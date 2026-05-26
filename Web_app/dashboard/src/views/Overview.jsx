@@ -71,10 +71,7 @@ function DescentRateStatus({ latest, history }) {
   const launchActive = pi >= 1;
   const apogeeActive = pi >= 3;
 
-  const maxAltFt = useMemo(
-    () => Math.max(0, ...history.map((p) => p.alt ?? 0)) * 3.28084,
-    [history]
-  );
+  const maxAltFt = latest?.alt_max ?? 0;
 
   // Light up drogue once actual descent rate hits 75 ft/s
   const drogueActive = useMemo(
@@ -350,7 +347,7 @@ export default function Overview({ latest, history }) {
         <StatCard
           label="ALTITUDE"
           value={(latest?.alt ?? 0).toFixed(1)}
-          unit="m (above ground level)"
+          unit="ft (above ground level)"
           sub={`${(latest?.vel ?? 0) >= 0 ? '+' : ''}${(latest?.vel ?? 0).toFixed(1)} ft/s`}
           subColor={(latest?.vel ?? 0) >= 0 ? '#3fb950' : '#f85149'}
         />
